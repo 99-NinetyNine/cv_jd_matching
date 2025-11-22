@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cv-job-matching-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cv-job-matching-api
+  template:
+    metadata:
+      labels:
+        app: cv-job-matching-api
+    spec:
+      containers:
+      - name: api
+        image: cv-job-matching-api:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: cv-secrets
+              key: DATABASE_URL
+        - name: OLLAMA_BASE_URL
+          value: "http://ollama-service:11434"
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cv-secrets
+              key: SECRET_KEY
+        resources:
+          limits:
+            memory: "512Mi"
+            cpu: "500m"

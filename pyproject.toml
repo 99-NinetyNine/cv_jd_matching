@@ -1,0 +1,35 @@
+[project]
+name = "cv-job-matching"
+version = "0.1.0"
+description = "CV-Job Matching System with NLP and Recommendation Engine"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "langchain",
+    "langgraph",
+    "langchain-community",
+    "langchain-ollama",
+    "pydantic",
+    "pypdf",
+    "psycopg2-binary",
+    "pgvector",
+    "sqlalchemy",
+    "sqlmodel",
+    "jupyter",
+    "notebook",
+    "pandas",
+    "numpy",
+    "scikit-learn",
+    "python-multipart",
+    "python-dotenv",
+    "unstructured",
+    "pdf2image",
+    "pdfminer.six",
+    "pymupdf",
+    "rank_bm25",
+    "sentence-transformers"
+]
+
+[tool.setuptools]
+packages = ["api", "core"]
