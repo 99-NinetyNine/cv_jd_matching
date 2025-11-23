@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from sklearn.metrics.pairwise import cosine_similarity
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
@@ -7,10 +7,10 @@ from core.matching.base import BaseMatcher
 from core.llm.factory import get_llm, get_embeddings
 from langchain_core.prompts import PromptTemplate
 import logging
+from core.cache.redis_cache import redis_client
+import json
 
 logger = logging.getLogger(__name__)
-
-from core.cache.simple_cache import embedding_cache, get_cache_key
 
 class HybridMatcher(BaseMatcher):
     def __init__(self, reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"):
@@ -25,13 +25,16 @@ class HybridMatcher(BaseMatcher):
             
     def _get_embedding(self, text: str) -> List[float]:
         """Get embedding with caching."""
-        key = get_cache_key(text)
-        cached = embedding_cache.get(key)
+        # Check Redis first
+        import hashlib
+        key = f"cv_embedding:{hashlib.md5(text.encode()).hexdigest()}"
+        cached = redis_client.get(key)
         if cached:
-            return cached
+            return np.frombuffer(cached, dtype=np.float64).tolist() # Assuming stored as bytes
         
         embedding = self.embeddings.embed_query(text)
-        embedding_cache.set(key, embedding)
+        # Cache it
+        redis_client.set(key, np.array(embedding).tobytes(), ttl=86400)
         return embedding
             
     def _get_text_representation(self, data: Dict[str, Any]) -> str:
@@ -43,7 +46,7 @@ class HybridMatcher(BaseMatcher):
             text += f"Summary: {data['basics'].get('summary', '')}\n"
         
         if "skills" in data:
-            skills = [s.get("name", "") for s in data["skills"]]
+            skills = [s.get("name", "") if isinstance(s, dict) else str(s) for s in data.get("skills", [])]
             text += f"Skills: {', '.join(skills)}\n"
             
         if "work" in data:
@@ -57,7 +60,28 @@ class HybridMatcher(BaseMatcher):
             
         return text
 
-    def _explain_match(self, cv_text: str, job_text: str, score: float) -> str:
+    def _calculate_skills_score(self, cv_skills: List[str], job_skills: List[str]) -> float:
+        if not cv_skills or not job_skills:
+            return 0.0
+        
+        cv_set = set(s.lower() for s in cv_skills)
+        job_set = set(s.lower() for s in job_skills)
+        
+        intersection = cv_set.intersection(job_set)
+        if not job_set:
+            return 0.0
+        
+        return len(intersection) / len(job_set)
+
+    def _calculate_experience_score(self, cv_work: List[Dict], job_requirements: Dict) -> float:
+        # Simplified experience scoring
+        # In a real system, parse years of experience from CV and compare with job reqs
+        # Here we just check if there is any work experience
+        if cv_work:
+            return 1.0
+        return 0.0
+
+    def _explain_match(self, cv_text: str, job_text: str, score: float, factors: Dict[str, float]) -> str:
         """Generate an explanation for the match using LLM."""
         prompt = PromptTemplate(
             template="""You are an expert HR assistant. Explain why this candidate is a good match for the job.
@@ -69,112 +93,128 @@ class HybridMatcher(BaseMatcher):
             {job_text}
             
             Match Score: {score}
+            Factors: {factors}
             
             Provide a concise explanation (max 3 sentences) highlighting key matching skills and experience.
             """,
-            input_variables=["cv_text", "job_text", "score"]
+            input_variables=["cv_text", "job_text", "score", "factors"]
         )
         
         chain = prompt | self.llm
         try:
-            return chain.invoke({"cv_text": cv_text[:1000], "job_text": job_text[:1000], "score": f"{score:.2f}"}).content
+            return chain.invoke({
+                "cv_text": cv_text[:1000], 
+                "job_text": job_text[:1000], 
+                "score": f"{score:.2f}",
+                "factors": str(factors)
+            }).content
         except Exception as e:
             logger.error(f"Explanation failed: {e}")
             return "Could not generate explanation."
 
-    def match(self, cv_data: Dict[str, Any], job_descriptions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        if not job_descriptions:
+    def match(self, cv_data: Dict[str, Any], job_candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Match CV against a list of job candidates.
+        job_candidates should ideally contain pre-computed embeddings.
+        """
+        if not job_candidates:
             return []
             
         cv_text = self._get_text_representation(cv_data)
-        job_texts = [self._get_text_representation(job) for job in job_descriptions]
         
-        # 1. Vector Search (Semantic)
-        cv_embedding = self._get_embedding(cv_text)
-        # For jobs, we assume they might be cached individually, but embed_documents is batch.
-        # For simplicity in this demo, we'll just use embed_documents for now, 
-        # but in production we'd cache job embeddings in DB.
-        job_embeddings = self.embeddings.embed_documents(job_texts)
+        # 1. Get CV Embedding
+        if "embedding" in cv_data and cv_data["embedding"]:
+            cv_embedding = cv_data["embedding"]
+        else:
+            cv_embedding = self._get_embedding(cv_text)
+            
+        # 2. Prepare Job Embeddings
+        job_embeddings = []
+        valid_jobs = []
+        
+        for job in job_candidates:
+            if "embedding" in job and job["embedding"]:
+                job_embeddings.append(job["embedding"])
+                valid_jobs.append(job)
+            else:
+                # Fallback: compute embedding (slow)
+                job_text = self._get_text_representation(job)
+                emb = self._get_embedding(job_text)
+                job_embeddings.append(emb)
+                valid_jobs.append(job)
+        
+        if not job_embeddings:
+            return []
+
+        # 3. Vector Search (Semantic)
         semantic_scores = cosine_similarity([cv_embedding], job_embeddings)[0]
         
-        # 2. Keyword Search (BM25)
-        tokenized_jobs = [doc.split() for doc in job_texts]
-        bm25 = BM25Okapi(tokenized_jobs)
-        tokenized_cv = cv_text.split()
-        keyword_scores = bm25.get_scores(tokenized_cv)
+        # 4. Feature Matching
+        cv_skills = [s.get("name", "") if isinstance(s, dict) else str(s) for s in cv_data.get("skills", [])]
         
-        # Normalize BM25 scores
-        if len(keyword_scores) > 0 and max(keyword_scores) > 0:
-            keyword_scores = keyword_scores / max(keyword_scores)
-            
-        # 3. Hybrid Score (Weighted Sum)
-        # 0.7 Semantic + 0.3 Keyword
-        hybrid_scores = 0.7 * semantic_scores + 0.3 * keyword_scores
-        
-        # Create initial results
         results = []
-        for i, job in enumerate(job_descriptions):
+        for i, job in enumerate(valid_jobs):
+            # Extract job skills (mocking extraction if not present)
+            # In real system, job should have structured skills
+            job_text = self._get_text_representation(job)
+            job_skills = [] # TODO: Extract skills from job description or use structured data
+            
+            # Skills Score
+            skills_score = 0.5 # Default if no structured skills
+            if "skills" in job:
+                 job_skills = job["skills"]
+                 skills_score = self._calculate_skills_score(cv_skills, job_skills)
+            
+            # Experience Score
+            experience_score = self._calculate_experience_score(cv_data.get("work", []), job)
+            
+            # Semantic Score
+            semantic_score = float(semantic_scores[i])
+            
+            # Weighted Sum
+            # Weights: Semantic (50%), Skills (30%), Experience (20%)
+            final_score = (semantic_score * 0.5) + (skills_score * 0.3) + (experience_score * 0.2)
+            
             results.append({
                 "job_id": job.get("job_id", f"job_{i}"),
-                "initial_score": float(hybrid_scores[i]),
                 "job_title": job.get("title", "Unknown"),
                 "company": job.get("company", "Unknown"),
-                "job_text": job_texts[i],
+                "match_score": final_score,
+                "matching_factors": {
+                    "semantic_similarity": semantic_score,
+                    "skills_match": skills_score,
+                    "experience_match": experience_score
+                },
+                "job_text": job_text,
                 "raw_job": job
             })
             
-        # Sort by hybrid score
-        results.sort(key=lambda x: x["initial_score"], reverse=True)
+        # Sort by score
+        results.sort(key=lambda x: x["match_score"], reverse=True)
         
-        # 4. Reranking (Top 10)
+        # 5. Reranking (Top 10)
         top_k = results[:10]
         if self.reranker:
             pairs = [[cv_text, res["job_text"]] for res in top_k]
-            rerank_scores = self.reranker.predict(pairs)
-            
-            for i, res in enumerate(top_k):
-                # Sigmoid to normalize cross-encoder output if needed, but raw is often fine for ranking
-                # Let's just use it as the final match score
-                res["match_score"] = float(rerank_scores[i])
-        else:
-            for res in top_k:
-                res["match_score"] = res["initial_score"]
+            try:
+                rerank_scores = self.reranker.predict(pairs)
+                for i, res in enumerate(top_k):
+                    # Reranker score is usually logits, need sigmoid or just use as is for ranking
+                    # We blend it with the initial score
+                    res["match_score"] = (res["match_score"] + float(rerank_scores[i])) / 2
+            except Exception as e:
+                logger.warning(f"Reranking failed: {e}")
                 
-        # Re-sort after reranking
+        # Re-sort
         top_k.sort(key=lambda x: x["match_score"], reverse=True)
         
-        # 5. Add Explanations (Top 3)
+        # 6. Explanations (Top 3)
         for res in top_k[:3]:
-            res["explanation"] = self._explain_match(cv_text, res["job_text"], res["match_score"])
+            res["explanation"] = self._explain_match(
+                cv_text, 
+                res["job_text"], 
+                res["match_score"], 
+                res["matching_factors"]
+            )
             
-        # Cold Start / Fallback
-        # If no good matches found (score < threshold), recommend popular/random jobs
-        if not top_k or top_k[0]["match_score"] < 0.2:
-            logger.info("Low match scores, adding cold start recommendations.")
-            # In a real app, fetch "popular" jobs from DB. Here we just take random ones.
-            # We'll mark them as "Trending" or "Suggested"
-            import random
-            remaining = [j for j in job_descriptions if j["job_id"] not in [r["job_id"] for r in top_k]]
-            if remaining:
-                cold_start = random.sample(remaining, min(3, len(remaining)))
-                for job in cold_start:
-                    top_k.append({
-                        "job_id": job["job_id"],
-                        "job_title": job["title"],
-                        "company": job["company"],
-                        "match_score": 0.1, # Low score to indicate it's a suggestion
-                        "explanation": "Suggested based on current job trends."
-                    })
-            
-        # Cleanup internal fields
-        final_results = []
-        for res in top_k:
-            final_results.append({
-                "job_id": res["job_id"],
-                "job_title": res["job_title"],
-                "company": res["company"],
-                "match_score": res["match_score"],
-                "explanation": res.get("explanation", "Good match based on skills and experience.")
-            })
-            
-        return final_results
+        return top_k

@@ -8,7 +8,7 @@ import asyncio
 from core.graph.parsing_graph import create_parsing_graph
 from core.graph.matching_graph import create_matching_graph
 from core.db.engine import create_db_and_tables
-from api.routers import hirer, candidate
+from api.routers import hirer, candidate, auth, admin
 
 app = FastAPI(title="CV-Job Matching System")
 
@@ -23,7 +23,9 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="api/static"), name="static")
 
 # Include Routers
-app.include_router(hirer.router)
+app.include_router(auth.router)
+app.include_router(admin.router)
+app.include_router(hirer.router, prefix="/jobs")
 app.include_router(candidate.router)
 
 # Startup event handler

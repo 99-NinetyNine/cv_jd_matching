@@ -26,7 +26,6 @@ pymupdf
 rank_bm25
 sentence-transformers
 pytesseract
-pdf2image
 Pillow
 redis
 celery

@@ -1,38 +1,37 @@
-.PHONY: up down restart build logs ps shell-api shell-db help
+# Makefile for CV Matching System
 
-COMPOSE_FILE := infra/docker-compose.yml
-COMPOSE := docker-compose -f $(COMPOSE_FILE)
+.PHONY: up down build logs k8s-up k8s-down restart
 
-help: ## Show this help message
-	@echo 'Usage:'
-	@echo '  make up         Start services in background'
-	@echo '  make down       Stop services'
-	@echo '  make restart    Restart services'
-	@echo '  make build      Rebuild services'
-	@echo '  make logs       Tail logs'
-	@echo '  make ps         Show service status'
-	@echo '  make shell-api  Open shell in API container'
-	@echo '  make shell-db   Open psql shell in DB container'
+# Docker Compose Commands
+up:
+	@echo "🚀 Starting Docker Compose..."
+	docker-compose -f infra/docker-compose.yml up -d
 
-up: ## Start services
-	$(COMPOSE) up -d
+down:
+	@echo "🛑 Stopping Docker Compose..."
+	docker-compose -f infra/docker-compose.yml down
 
-down: ## Stop services
-	$(COMPOSE) down
+build:
+	@echo "🔨 Building Docker Images..."
+	docker-compose -f infra/docker-compose.yml build
 
-restart: down up ## Restart services
+logs:
+	@echo "📋 Tailing logs..."
+	docker-compose -f infra/docker-compose.yml logs -f
 
-build: ## Rebuild services
-	$(COMPOSE) build
+restart: down up
 
-logs: ## Tail logs
-	$(COMPOSE) logs -f
+# Kubernetes Commands
+k8s-up:
+	@echo "🚀 Deploying to Kubernetes..."
+	./infra/k8s/start_k8s.sh
 
-ps: ## Show service status
-	$(COMPOSE) ps
+k8s-down:
+	@echo "🛑 Removing Kubernetes Resources..."
+	kubectl delete -f infra/k8s/
+	kubectl delete secret cv-secrets --ignore-not-found
 
-shell-api: ## Open shell in API container
-	$(COMPOSE) exec api bash
-
-shell-db: ## Open psql shell in DB container
-	$(COMPOSE) exec db psql -U postgres -d cv_matching
+# Utility
+clean:
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	find . -type f -name "*.pyc" -delete

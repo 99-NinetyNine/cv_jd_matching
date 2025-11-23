@@ -15,6 +15,13 @@ services:
       - db
     volumes:
       - ../:/app
+    links:
+      - redis
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
 
   db:
     image: pgvector/pgvector:pg16
@@ -26,6 +33,23 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  worker:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    command: celery -A core.worker.celery_app worker --loglevel=info
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db:5432/cv_matching}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - LLM_MODEL=${LLM_MODEL:-llama3}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ../:/app
 
 volumes:
   postgres_data:
