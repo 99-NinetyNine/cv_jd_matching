@@ -29,6 +29,9 @@ def main():
     # Run full resume evaluation
     results = evaluator.evaluate_resume(gt_data, pred_data)
     
+    # Compute overall metrics
+    overall = evaluator.compute_overall_metrics(results)
+    
     # Display results for each section
     for section, metrics in results.items():
         print(f"\n{section.upper()}:")
@@ -42,6 +45,15 @@ def main():
                 print(f"    - {field}: {score:.2f}")
     
     print("\n" + "=" * 60)
+    print("OVERALL RESUME METRICS:")
+    print(f"  Overall Precision:        {overall['precision']:.2f}")
+    print(f"  Overall Recall:           {overall['recall']:.2f}")
+    print(f"  Overall F1:               {overall['f1']:.2f}")
+    print(f"  Avg Field Accuracy:       {overall['avg_field_accuracy']:.2f}")
+    print(f"  Sections Evaluated:       {overall['sections_evaluated']}")
+    print(f"  Sections with Data:       {', '.join(overall['sections_with_data'])}")
+    print(f"  Fields Evaluated:         {overall['fields_evaluated']}")
+    print("=" * 60)
     print("Full resume evaluation complete!")
 
 if __name__ == "__main__":
