@@ -1,0 +1,194 @@
+{
+  "basics": {
+    "name": null,
+    "label": "ADVOCATE",
+    "image": null,
+    "email": null,
+    "phone": null,
+    "url": null,
+    "summary": "Conscientious attorney with experience in government relations, educational law and advocacy for families with special needs children, two years practice in health law and public policy for military families, two years federal government experience in human rights and foreign affairs with the U.S. Department of State",
+    "location": null,
+    "profiles": []
+  },
+  "work": [
+    {
+      "name": "Company Name",
+      "position": "Advocate",
+      "url": null,
+      "startDate": "2011-01",
+      "endDate": "2013-01",
+      "summary": null,
+      "highlights": [
+        "Represented the needs of military families with policy makers and national organizations regarding legislation and programs for military special needs dependent children",
+        "Assisted families with navigating military health care insurance",
+        "Strategized with parents concerning individual education plans, 504 documents and educational behavioral plans",
+        "Led the first Military Family Leadership Institute training on Fort Meade and taught parent seminars on effective communication and advocacy",
+        "Trained professionals statewide concerning military culture and customs",
+        "Represented the Maryland Coalition on the Maryland Military Child State Education Committee Board, the DC area Inter-service Family Action Board, The Kimbrough Military Treatment Patient Family Action Council and the National Military Officer Association of America Spouse Advisory Panel"
+      ]
+    },
+    {
+      "name": "Company Name",
+      "position": "United States Foreign Service Officer",
+      "url": null,
+      "startDate": "2003-01",
+      "endDate": "2005-01",
+      "summary": null,
+      "highlights": [
+        "Student, Department of State, Foreign Service Institute",
+        "Studied German language and culture",
+        "Studied Europe and German/American Relations and American/EU relations",
+        "Presented in depth study of German Contemporary Issues",
+        "Learned European history and culture to include Western Europe, Eastern Europe and the Balkans",
+        "Foreign Affairs Officer, Department of State, International Religious Freedom Office",
+        "In charge of monitoring religious freedom in Africa",
+        "Edited and added to the Annual Congressional Religious Freedom Report concerning religious intolerance in Western and Sub-Saharan Africa",
+        "Met with International Non-Governmental Organizations regarding religious freedom and atrocities against religious minorities",
+        "Coordinated with U.S. embassies to investigate religious persecution in Africa, worked in partnership with other State Department bureaus and country desk officers to ensure religious freedom for Africans",
+        "Staff Assistant, Department of State, Political/Military Bureau",
+        "Worked directly with the Secretary of State's Executive Staff regarding documents from the Political/Military Bureau",
+        "Reported directly for the Office of the Assistant Secretary",
+        "Provided technical guidance and deadlines to a bureau of ten office directors and 300 people",
+        "Set bureau priorities and was project manager for projects tasked to the bureau for and from the Secretary of State, Deputy Secretary, National Security Council and Undersecretary",
+        "Ensured timeliness and accuracy of classified documents and sensitive communications, made certain documents were properly classified",
+        "Managed bureau contributions to overseas briefing books for the Vice President, Secretary of State and Deputy Secretary of State",
+        "Liaison with Legislative Affairs Bureau for the bureau's responses to Congressional inquiries",
+        "Supervised nine interns, trained incoming staff assistants and managed scheduling of intern hours"
+      ]
+    }
+  ],
+  "volunteer": [
+    {
+      "organization": "Exceptional Family Member Services",
+      "position": "Volunteer Public Advocate/Attorney",
+      "url": null,
+      "startDate": "1997-01",
+      "endDate": "2002-01",
+      "summary": null,
+      "highlights": [
+        "Provided legal representation to families with special needs children regarding education services",
+        "Negotiated Individual Education Plans and 504 documents",
+        "Interpreted and applied federal statutory requirements and administrative regulations for clients before school administrative hearings",
+        "Drafted appropriate goals for education plans"
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "Georgia State University",
+      "url": null,
+      "area": "Law",
+      "studyType": "Juris Doctor",
+      "startDate": null,
+      "endDate": null,
+      "score": null,
+      "courses": []
+    },
+    {
+      "institution": "Johannes Kepler University, School of Law",
+      "url": null,
+      "area": "International law and arbitration",
+      "studyType": null,
+      "startDate": null,
+      "endDate": null,
+      "score": "completed with honors",
+      "courses": []
+    },
+    {
+      "institution": "Evangel University",
+      "url": null,
+      "area": "Government and Communications",
+      "studyType": "Bachelor of Arts",
+      "startDate": null,
+      "endDate": null,
+      "score": "Summa cum Laude",
+      "courses": []
+    }
+  ],
+  "awards": [
+    {
+      "title": "Evangel University Alumni Social Science Regent Award Recipient",
+      "date": null,
+      "awarder": "Evangel University Alumni",
+      "summary": null
+    }
+  ],
+  "certificates": [],
+  "publications": [],
+  "skills": [
+    {
+      "name": "Member of Maryland Bar",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Statutory Public Policy",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Foreign Affairs",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Human Rights Law",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Diplomacy",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Government Relations",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Special Education Law",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Health Law",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Statutory Procedure",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Multi-task management",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Training",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Liaison",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Federal Government",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Public Policy",
+      "level": null,
+      "keywords": []
+    }
+  ],
+  "languages": [],
+  "interests": [],
+  "references": [],
+  "projects": []
+}

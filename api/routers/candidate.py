@@ -8,9 +8,9 @@ from pydantic import BaseModel
 from core.db.engine import get_session
 from core.db.models import Job, CV, ParsingCorrection, UserInteraction
 from core.matching.semantic_matcher import HybridMatcher
-from core.parsing.pdf_parser import PDFParser
 from core.cache.redis_cache import redis_client
 from core.llm.factory import get_embeddings
+from core.parsing.main import RESUME_PARSER
 from core.worker.tasks import match_cv_task
 from celery.result import AsyncResult
 from core.monitoring.metrics import track_time_async, log_metric
@@ -126,7 +126,7 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
             return
 
         # 2. Parse
-        parser = PDFParser()
+        parser = RESUME_PARSER
         data = parser.parse(file_path)
         
         # Update CV record
@@ -248,7 +248,7 @@ async def parse_cv_sync(cv_id: str, session: Session = Depends(get_session)):
     if not file_path.exists():
          raise HTTPException(status_code=404, detail="CV file not found.")
 
-    parser = PDFParser()
+    parser =RESUME_PARSER
     try:
         data = parser.parse(file_path)
         

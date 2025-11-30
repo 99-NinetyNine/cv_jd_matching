@@ -4,10 +4,15 @@ from sqlmodel import Session, select
 from core.db.models import ExternalProfile
 import logging
 
+# DEPRECATED
 logger = logging.getLogger(__name__)
 # in order to fetch from linkedin github the user related info for checking the profile is not fake
 # or tampererd (though needs colab with linkedin and github)
+# but that's not our core requirement so it can be removed
+# moreover, adding this logic would increase the latency
+
 class ProfileFetcher:
+
     def __init__(self, session: Session):
         self.session = session
         

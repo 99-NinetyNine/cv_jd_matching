@@ -1,6 +1,6 @@
 from typing import TypedDict, Dict, Any, Annotated
 from langgraph.graph import StateGraph, END
-from core.parsing.pdf_parser import PDFParser
+from core.parsing.extractors.naive.pdf_parser import PDFParser
 import operator
 
 class ParsingState(TypedDict):

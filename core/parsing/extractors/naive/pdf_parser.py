@@ -4,10 +4,9 @@ from langchain_community.document_loaders import PyMuPDFLoader, UnstructuredPDFL
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.exceptions import OutputParserException
-from core.parsing.base import BaseParser
+from core.parsing.extractors.base import BaseParser
 from core.parsing.schema import Resume
 from core.llm.factory import get_llm
-from core.parsing.rules import RegexRules
 import logging
 import fitz  # PyMuPDF
 import pytesseract

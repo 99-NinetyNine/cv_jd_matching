@@ -1,0 +1,219 @@
+{
+  "basics": {
+    "name": null,
+    "label": "Designer",
+    "image": null,
+    "email": null,
+    "phone": null,
+    "url": null,
+    "summary": "Designer with more than 15 years in product design, manufacturing, exhibit design and visual merchandising, with comprehensive management and logistics experience who thrives in dynamically changing environments. Planned, directed, coordinated and assigned manpower to efficiently meet production requirements.",
+    "location": {
+      "address": null,
+      "postalCode": null,
+      "city": null,
+      "countryCode": null,
+      "region": null
+    },
+    "profiles": []
+  },
+  "work": [
+    {
+      "name": "Company Name",
+      "position": "Designer",
+      "url": null,
+      "startDate": "2014-03",
+      "endDate": "2015-11",
+      "summary": null,
+      "highlights": [
+        "Design and built custom furniture from client's initial conceptual idea.",
+        "Create CAD drawings for approval",
+        "Create estimate of pricing",
+        "Provide finish samples and fabrics cuttings for approval, Creates, reviews, and modifies all specification documentation including approval drawings, supplier drawings, and all specifications.",
+        "Responsible for correct building and finishing of product designed",
+        "Completed key projects on time, on budget and with a high level of accuracy.",
+        "Reviewed production orders, schedules, delivery dates and inventory levels to determine product availability.",
+        "Established and adjusted work procedures to meet production schedules.",
+        "Supervised production schedules, production quality and on time delivery."
+      ]
+    },
+    {
+      "name": "Company Name",
+      "position": "Senior Production Manager",
+      "url": null,
+      "startDate": "2006-02",
+      "endDate": "2014-03",
+      "summary": null,
+      "highlights": [
+        "Management of Production team",
+        "Responsible for price quotations of all custom quotes in the Formations product line.",
+        "Also responsible for accurate generation of Order Acknowledgment and related approval drawings when necessary, and review and launch of \"Standard\" product line.",
+        "Worked closely with R&D department, assisting as necessary in the development of new products.",
+        "Created, reviewed, and modified all specification documentation including approval drawings, supplier drawings, and all specifications in the MAS 200 system, and E2 ShopTec System.",
+        "Reviewed and maintained pricing for all Formations product line, meeting directly with owners to evaluate value-engineering concepts and options.",
+        "Developed, evaluated, and maintained the quality of our vendors and products.",
+        "Prepared analysis of new designs for overall feasibility and possible incorporation into the standard line of products.",
+        "Responsible to oversee and supervise the team in production of all products verifying proper assembly techniques, finishes, upholstery, and development of necessary implementation.",
+        "Communicated and instructed sales to assure a smooth flow of information throughout the production process.",
+        "Maintained average turn-around on all custom quotes and estimates.",
+        "Assisted in the daily questions and issues related to \"Custom\" work and/or engineering of orders to the respective department supervisors, when necessary.",
+        "Authorized the fulfillment of requests for repairs, orders returns/cancellation and discounts.",
+        "Interacted with all managers to solve/discuss issues, concerns, updates, projects, and deadlines for all demands."
+      ]
+    },
+    {
+      "name": "Company Name",
+      "position": "Project Manager",
+      "url": null,
+      "startDate": "2004-06",
+      "endDate": "2005-11",
+      "summary": null,
+      "highlights": [
+        "Space and furniture planning",
+        "Design capabilities along with strong organizational and communication skills, creation of FF&E, color & materials.",
+        "Coordination of drawings and information with other disciplines while providing design support for completion and execution of design projects (space planning, details, specifications, material palettes).",
+        "Served as the single point of contact for project scheduling and changes.",
+        "Monitored team progress and enforced deadlines.",
+        "Drafted action plans and led meetings with department executives to review project status and proposed changes.",
+        "Defined project deliverables and monitored status of tasks.",
+        "Responsible for small maintenance projects as the Viceroy Hotel in Santa Monica."
+      ]
+    }
+  ],
+  "volunteer": [],
+  "education": [
+    {
+      "institution": "Santa Monica College",
+      "url": null,
+      "area": "Interior and Furniture Design",
+      "studyType": "Associate of Arts",
+      "startDate": null,
+      "endDate": null,
+      "score": null,
+      "courses": []
+    },
+    {
+      "institution": "Universidade Candido Mendes",
+      "url": null,
+      "area": "Contract",
+      "studyType": "Bachelor of Laws (LLB)",
+      "startDate": null,
+      "endDate": null,
+      "score": null,
+      "courses": []
+    }
+  ],
+  "awards": [],
+  "certificates": [
+    {
+      "name": "Certified Interior Designer",
+      "date": null,
+      "issuer": null,
+      "url": null
+    }
+  ],
+  "publications": [],
+  "skills": [
+    {
+      "name": "Design processing expertise",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "AutoCAD Drafting",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Adobe Photoshop",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Conceptual Design",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Product specifications",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Color and material application",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Strong leader",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Furniture systems",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Vendor sourcing",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Quality control standards",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Procurement",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Product quality",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "GMP Compliance",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "3D Rendering",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Material Board",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Communication skills",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Material organizational",
+      "level": null,
+      "keywords": []
+    }
+  ],
+  "languages": [
+    {
+      "language": "Portuguese",
+      "fluency": "Fluent"
+    },
+    {
+      "language": "English",
+      "fluency": "Fluent"
+    },
+    {
+      "language": "Spanish",
+      "fluency": "Intermediate"
+    }
+  ],
+  "interests": [],
+  "references": [],
+  "projects": []
+}
