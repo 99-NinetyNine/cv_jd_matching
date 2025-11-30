@@ -6,6 +6,7 @@ Thumbs.db
 ehthumbs.db
 *.log
 
+
 # Python
 __pycache__/
 *.py[cod]
@@ -60,6 +61,8 @@ yarn-error.log*
 core/parsing/tests_data/resume_and_texts_kaggle/all
 core/parsing/tests_data/resume_and_texts_kaggle/all/**
 
+# job desc data
+core/matching/job_descs/job_descriptions.csv
 
 # Allow c folder
 !core/parsing/tests_data/resume_and_texts_kaggle/some
@@ -72,6 +75,7 @@ core/parsing/tests_data/resume_and_texts_kaggle/all/**
 # Postgres
 postgres_data/
 pgdata/
+ollama_data/
 
 !web/.env
 

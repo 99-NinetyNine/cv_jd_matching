@@ -34,6 +34,13 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
   worker:
     build:
       context: ..
@@ -41,15 +48,17 @@ services:
     command: celery -A core.worker.celery_app worker --loglevel=info
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db:5432/cv_matching}
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
       - LLM_MODEL=${LLM_MODEL:-llama3}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     depends_on:
       - db
       - redis
+      - ollama
     volumes:
       - ../:/app
 
 volumes:
   postgres_data:
+  ollama_data:

@@ -1,0 +1,1 @@
+The job description is directly downloaded from kaggle(https://www.kaggle.com/datasets/ravindrasinghrana/job-description-dataset), its size is about 1.2 GB. I have samples some JDs and kept as sampled_jds.csv for quick glance.
