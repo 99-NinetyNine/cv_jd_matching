@@ -49,7 +49,10 @@ class HybridMatcher(BaseMatcher):
             logger.warning(f"Failed to load reranker: {e}. Reranking will be disabled.")
             self.reranker = None
             
-    def _get_embedding(self, text: str) -> List[float]:
+    def _get_embedding(self, text: str, entity_id: Optional[str] = None, entity_type: Optional[str] = None) -> List[float]:
+        """Get embedding with optional ID-based caching."""
+        if entity_id and entity_type and hasattr(self.embedder, 'embed_with_id'):
+            return self.embedder.embed_with_id(text, entity_id, entity_type)
         return self.embedder.embed_query(text)
 
     def _get_text_representation(self, data: Dict[str, Any]) -> str:
@@ -176,22 +179,30 @@ class HybridMatcher(BaseMatcher):
             return "Could not generate explanation."
 
     def save_job_embedding(self, job_id: str, job_data: Dict[str, Any]):
-        """Save job embedding using strategy."""
+        """Save job embedding using strategy with ID-based caching."""
         job_text = self._get_text_representation(job_data)
-        embedding = self._get_embedding(job_text)
+        embedding = self._get_embedding(job_text, entity_id=job_id, entity_type='job')
         self.strategy.save_job(job_id, job_data, embedding)
 
-    def match(self, cv_data: Dict[str, Any], job_candidates: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def match(self, cv_data: Dict[str, Any], job_candidates: List[Dict[str, Any]] = None, cv_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Match CV against jobs using the configured strategy.
+        
+        Args:
+            cv_data: CV data dictionary
+            job_candidates: Optional list of job candidates (for naive strategy)
+            cv_id: Optional CV ID for ID-based embedding caching
         """
         cv_text = self._get_text_representation(cv_data)
         
-        # 1. Get CV Embedding
+        # 1. Get CV Embedding (use ID-based caching if cv_id provided)
         if "embedding" in cv_data and cv_data["embedding"]:
             cv_embedding = cv_data["embedding"]
         else:
-            cv_embedding = self._get_embedding(cv_text)
+            if cv_id:
+                cv_embedding = self._get_embedding(cv_text, entity_id=cv_id, entity_type='cv')
+            else:
+                cv_embedding = self._get_embedding(cv_text)
             
         # 2. If job_candidates provided, save them (mostly for naive strategy or demo)
         # not used in real case, just for studyinf purpose

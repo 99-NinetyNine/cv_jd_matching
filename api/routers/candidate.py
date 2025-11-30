@@ -5,6 +5,7 @@ import json
 import asyncio
 from sqlmodel import Session, select
 from pydantic import BaseModel
+from typing import Optional
 from core.db.engine import get_session
 from core.db.models import Job, CV, ParsingCorrection, UserInteraction
 from core.matching.semantic_matcher import HybridMatcher
@@ -13,6 +14,8 @@ from core.parsing.main import RESUME_PARSER
 from core.worker.tasks import match_cv_task
 from celery.result import AsyncResult
 from core.monitoring.metrics import track_time_async, log_metric
+from core.matching.embeddings import EmbeddingFactory
+from core.services.cv_service import get_or_parse_cv, compute_cv_embedding, update_cv_with_corrections
 import numpy as np
 
 router = APIRouter(tags=["candidate"])
@@ -55,41 +58,45 @@ async def upload_cv(file: UploadFile = File(...), session: Session = Depends(get
     return {"cv_id": cv_id, "filename": filename, "path": str(file_path)}
 
 @router.post("/candidates/match")
-async def match_candidate(cv_data: dict, strategy: str = "pgvector", session: Session = Depends(get_session)):
-    # basic recommedation system
-    # Check cache first
-    import hashlib
-    # Create a hash of the CV data to use as cache key
-    cv_hash = hashlib.md5(json.dumps(cv_data, sort_keys=True).encode()).hexdigest()
-    cache_key = f"match_results:{strategy}:{cv_hash}"
+async def match_candidate(cv_id: str, strategy: str = "pgvector", session: Session = Depends(get_session)):
+    """
+    Match candidate by CV ID against jobs.
+    Uses cached CV data and embeddings for efficiency.
+    
+    Args:
+        cv_id: Unique CV identifier
+        strategy: Matching strategy ('pgvector' or 'naive')
+    """
+    # Get CV from database
+    cv = session.exec(select(CV).where(CV.filename == f"{cv_id}.pdf")).first()
+    if not cv or not cv.content:
+        raise HTTPException(status_code=404, detail="CV not found or not parsed")
+    
+    cv_data = cv.content
+    
+    # Check cache for match results
+    cache_key = f"match_results:{strategy}:{cv_id}"
     cached_results = redis_client.get(cache_key)
     
     if cached_results:
         return {"matches": json.loads(cached_results)}
 
-    # Get top 50 candidates using vector search
-    # We need to compute CV embedding first if not present
+    # Get CV embedding (should be cached from parsing)
+    embedder = EmbeddingFactory.get_embedder(provider="ollama")
     cv_embedding = None
-    if "embedding" in cv_data:
-        cv_embedding = cv_data["embedding"]
-    else:
-        # Compute embedding
-        embeddings = get_embeddings()
-        text_rep = ""
-        if "basics" in cv_data:
-            text_rep += f"{cv_data['basics'].get('name', '')} {cv_data['basics'].get('summary', '')} "
-        if "skills" in cv_data:
-            text_rep += " ".join([s.get("name", "") if isinstance(s, dict) else str(s) for s in cv_data.get("skills", [])])
-        cv_embedding = embeddings.embed_query(text_rep)
-
-    # Query DB for top 50 matches (Only for Pgvector strategy optimization, but let's keep it generic for now)
-    # If strategy is naive, we might need to fetch all jobs or use the strategy implementation directly.
-    # For now, let's rely on the Matcher class to handle it.
     
-    # Prepare job candidates (if naive, we need to pass them, if pgvector, it queries DB)
+    if cv.embedding:
+        cv_embedding = cv.embedding
+    else:
+        # Compute if not present
+        cv_embedding = compute_cv_embedding(cv_id, cv_data, embedder)
+        cv.embedding = cv_embedding
+        session.add(cv)
+        session.commit()
+    
+    # Prepare job candidates if using naive strategy
     job_candidates = []
     if strategy == "naive":
-        # Fetch all jobs for naive comparison (inefficient but required for naive)
         jobs = session.exec(select(Job)).all()
         for job in jobs:
             j_dict = job.dict()
@@ -97,11 +104,11 @@ async def match_candidate(cv_data: dict, strategy: str = "pgvector", session: Se
                  j_dict["embedding"] = job.embedding
             job_candidates.append(j_dict)
     
+    # Match using HybridMatcher with cv_id for caching
     matcher = HybridMatcher(strategy=strategy)
-    # Pass embedding to matcher to avoid re-computing
     cv_data_with_emb = cv_data.copy()
     cv_data_with_emb["embedding"] = cv_embedding
-    matches = matcher.match(cv_data_with_emb, job_candidates)
+    matches = matcher.match(cv_data_with_emb, job_candidates, cv_id=cv_id)
     
     # Cache results
     redis_client.set(cache_key, json.dumps(matches), ttl=3600)
@@ -127,78 +134,38 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
             await websocket.close()
             return
 
-        # 2. Parse
-        parser = RESUME_PARSER
-        data = parser.parse(file_path)
+        # 2. Parse using shared service (checks DB first)
+        data = get_or_parse_cv(cv_id, file_path, session)
         
-        # Update CV record
+        # 3. Compute embedding using shared service with ID-based caching
+        embedder = EmbeddingFactory.get_embedder(provider="ollama")
+        cv_embedding = compute_cv_embedding(cv_id, data, embedder)
+        
+        # Update CV record with embedding
         cv = session.exec(select(CV).where(CV.filename == filename)).first()
         if cv:
-            cv.content = data
-            # Compute embedding
-            embeddings = get_embeddings()
-            # Create text representation for embedding
-            text_rep = ""
-            if "basics" in data:
-                text_rep += f"{data['basics'].get('name', '')} {data['basics'].get('summary', '')} "
-            if "skills" in data:
-                text_rep += " ".join([s.get("name", "") if isinstance(s, dict) else str(s) for s in data.get("skills", [])])
-            
-            cv.embedding = embeddings.embed_query(text_rep)
+            cv.embedding = cv_embedding
             session.add(cv)
             session.commit()
-            
-            # Cache embedding
-            redis_client.set(f"cv_embedding:{cv_id}", np.array(cv.embedding).tobytes(), ttl=86400)
             
         await websocket.send_json({"status": "parsing_complete", "data": data})
         
         # Wait for user confirmation (Review Step)
-        # We expect a message from client: {"action": "confirm", "data": {...}}
         try:
             msg = await websocket.receive_json()
             if msg.get("action") == "confirm":
-                confirmed_data = msg.get("data")
+                corrected_data = msg.get("data")
                 
-                # Check for corrections
-                if confirmed_data != data:
-                    # Save correction
-                    correction = ParsingCorrection(
-                        cv_id=cv_id,
-                        original_data=data,
-                        corrected_data=confirmed_data
-                    )
-                    session.add(correction)
-                    session.commit()
-                    
-                    # Update CV with confirmed data
-                    if cv:
-                        cv.content = confirmed_data
-                        # Re-compute embedding if text changed significantly
-                        # For simplicity, let's assume we re-compute
-                        embeddings = get_embeddings()
-                        text_rep = ""
-                        if "basics" in confirmed_data:
-                            text_rep += f"{confirmed_data['basics'].get('name', '')} {confirmed_data['basics'].get('summary', '')} "
-                        if "skills" in confirmed_data:
-                            text_rep += " ".join([s.get("name", "") if isinstance(s, dict) else str(s) for s in confirmed_data.get("skills", [])])
-                        
-                        cv.embedding = embeddings.embed_query(text_rep)
-                        session.add(cv)
-                        session.commit()
-                        
-                        # Cache embedding
-                        redis_client.set(f"cv_embedding:{cv_id}", np.array(cv.embedding).tobytes(), ttl=86400)
-                
-                data = confirmed_data # Use confirmed data for matching
-            else:
-                # If not confirm, maybe cancel or just proceed?
-                # Let's assume proceed with original if something else comes (or handle error)
-                pass
-                
+                # Use shared service to handle corrections
+                data = update_cv_with_corrections(
+                    cv_id, 
+                    data, 
+                    corrected_data, 
+                    session,
+                    embedder=embedder
+                )
         except Exception as e:
             print(f"Error waiting for confirmation: {e}")
-            # Proceed with original data if error receiving confirmation (or close)
         
         # 3. Matching Started
         await websocket.send_json({"status": "matching_started", "message": "Finding best matches..."})
@@ -206,9 +173,7 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
         # Trigger matching via Celery
         task = match_cv_task.delay(data)
         
-        # Wait for result (polling or blocking)
-        # Since we are in an async WS handler, we can't block with .get() efficiently without blocking the event loop
-        # But for this demo, let's use a simple loop with sleep
+        # Wait for result
         while not task.ready():
             await asyncio.sleep(0.5)
             

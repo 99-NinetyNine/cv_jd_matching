@@ -52,6 +52,43 @@ class OllamaEmbedder:
         except Exception as e:
             logger.error(f"Ollama embedding failed: {e}")
             raise e
+    
+    def embed_with_id(self, text: str, entity_id: str, entity_type: str) -> List[float]:
+        """Generate embedding with ID-based caching for better cache efficiency.
+        
+        Args:
+            text: Text to embed
+            entity_id: Unique identifier (e.g., cv_id, job_id)
+            entity_type: Type of entity ('cv' or 'job')
+        
+        Returns:
+            Embedding vector
+        """
+        # Use ID-based cache key
+        key = f"emb_ollama_{self.model}_{entity_type}:{entity_id}"
+        cached = redis_client.get(key)
+        if cached:
+            logger.info(f"Cache hit for {entity_type} {entity_id}")
+            return np.frombuffer(cached, dtype=np.float64).tolist()
+        
+        logger.info(f"Computing embedding for {entity_type} {entity_id}")
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/embeddings",
+                json={
+                    "model": self.model,
+                    "prompt": text
+                }
+            )
+            response.raise_for_status()
+            embedding = response.json()["embedding"]
+            
+            # Cache with longer TTL for ID-based cache (7 days)
+            redis_client.set(key, np.array(embedding).tobytes(), ttl=604800)
+            return embedding
+        except Exception as e:
+            logger.error(f"Ollama embedding failed for {entity_type} {entity_id}: {e}")
+            raise e
 
 class GoogleEmbedder:
     def __init__(self, model: str = "models/embedding-001"):
@@ -74,6 +111,34 @@ class GoogleEmbedder:
             return embedding
         except Exception as e:
             logger.error(f"Google embedding failed: {e}")
+            raise e
+    
+    def embed_with_id(self, text: str, entity_id: str, entity_type: str) -> List[float]:
+        """Generate embedding with ID-based caching for better cache efficiency.
+        
+        Args:
+            text: Text to embed
+            entity_id: Unique identifier (e.g., cv_id, job_id)
+            entity_type: Type of entity ('cv' or 'job')
+        
+        Returns:
+            Embedding vector
+        """
+        # Use ID-based cache key
+        key = f"emb_google_{self.model}_{entity_type}:{entity_id}"
+        cached = redis_client.get(key)
+        if cached:
+            logger.info(f"Cache hit for {entity_type} {entity_id}")
+            return np.frombuffer(cached, dtype=np.float64).tolist()
+        
+        logger.info(f"Computing embedding for {entity_type} {entity_id}")
+        try:
+            embedding = self.client.embed_query(text)
+            # Cache with longer TTL for ID-based cache (7 days)
+            redis_client.set(key, np.array(embedding).tobytes(), ttl=604800)
+            return embedding
+        except Exception as e:
+            logger.error(f"Google embedding failed for {entity_type} {entity_id}: {e}")
             raise e
 
 class EmbeddingFactory:
