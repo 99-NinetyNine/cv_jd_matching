@@ -32,8 +32,6 @@ def match_cv_task(cv_data):
             # If not provided, we might need to compute it. 
             # But we should try to pass it to avoid re-computing in worker if possible.
             # If we must compute:
-            from core.llm.factory import get_embeddings
-            embeddings = get_embeddings()
             text_rep = ""
             if "basics" in cv_data:
                 text_rep += f"{cv_data['basics'].get('name', '')} {cv_data['basics'].get('summary', '')} "

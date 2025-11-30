@@ -9,7 +9,6 @@ from core.db.engine import get_session
 from core.db.models import Job, CV, ParsingCorrection, UserInteraction
 from core.matching.semantic_matcher import HybridMatcher
 from core.cache.redis_cache import redis_client
-from core.llm.factory import get_embeddings
 from core.parsing.main import RESUME_PARSER
 from core.worker.tasks import match_cv_task
 from celery.result import AsyncResult
@@ -57,6 +56,7 @@ async def upload_cv(file: UploadFile = File(...), session: Session = Depends(get
 
 @router.post("/candidates/match")
 async def match_candidate(cv_data: dict, strategy: str = "pgvector", session: Session = Depends(get_session)):
+    # basic recommedation system
     # Check cache first
     import hashlib
     # Create a hash of the CV data to use as cache key
@@ -108,8 +108,11 @@ async def match_candidate(cv_data: dict, strategy: str = "pgvector", session: Se
     
     return {"matches": matches}
 
+
 @router.websocket("/ws/candidate/{cv_id}")
 async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session = Depends(get_session)):
+    """ In order to make it interactive, we can use websocket"""
+    
     await websocket.accept()
     try:
         # 1. Parsing Started
@@ -219,6 +222,8 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
     except Exception as e:
         await websocket.send_json({"status": "error", "message": str(e)})
 
+# to get feedback of recommendation, could be used to evaluate the quality of prediction
+
 class InteractionCreate(BaseModel):
     user_id: int
     job_id: str
@@ -240,44 +245,3 @@ async def log_interaction(interaction: InteractionCreate, session: Session = Dep
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/parse_sync")
-async def parse_cv_sync(cv_id: str, session: Session = Depends(get_session)):
-    # Find the file
-    filename = f"{cv_id}.pdf"
-    file_path = UPLOAD_DIR / filename
-    
-    if not file_path.exists():
-         raise HTTPException(status_code=404, detail="CV file not found.")
-
-    parser =RESUME_PARSER
-    try:
-        data = parser.parse(file_path)
-        
-        # Update CV record with parsed content
-        # We need to find the CV by filename (which contains the ID)
-        cv = session.exec(select(CV).where(CV.filename == filename)).first()
-        if cv:
-            cv.content = data
-            # Generate embedding
-            embeddings = get_embeddings()
-            text_rep = ""
-            if "basics" in data:
-                text_rep += f"{data['basics'].get('name', '')} {data['basics'].get('summary', '')} "
-            if "skills" in data:
-                text_rep += " ".join([s.get("name", "") if isinstance(s, dict) else str(s) for s in data.get("skills", [])])
-            
-            cv.embedding = embeddings.embed_query(text_rep)
-            
-            session.add(cv)
-            session.commit()
-            
-            # Cache embedding
-            try:
-                redis_client.set(f"cv_embedding:{cv_id}", np.array(cv.embedding).tobytes(), ttl=86400)
-            except Exception as e:
-                print(f"Failed to cache CV embedding: {e}")
-            
-        return data
-    except Exception as e:
-        print(f"Parsing error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Parsing failed: {str(e)}")

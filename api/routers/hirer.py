@@ -3,7 +3,6 @@ from sqlmodel import Session, select
 from typing import List
 from core.db.engine import get_session
 from core.db.models import Job, CV
-from core.llm.factory import get_embeddings
 from core.cache.redis_cache import redis_client
 
 

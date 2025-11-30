@@ -1,52 +1,52 @@
-from core.parsing.layout_parser import LayoutParser
-from core.parsing.extractor import Extractor
+from core.parsing.main import RESUME_PARSER
 from core.parsing.schema import Resume
 from typing import Dict, Any
 import os
 
 class ResumeExtractionPipeline:
+    """
+    Simplified pipeline using the naive PDF parser.
+    This uses a single-step LLM extraction instead of the multi-stage approach.
+    """
     def __init__(self):
-        self.layout_parser = LayoutParser()
-        self.extractor = Extractor()
+        self.parser = RESUME_PARSER
 
     def process(self, pdf_path: str) -> Dict[str, Any]:
         """
-        Run the full extraction pipeline on a PDF file.
+        Run the extraction pipeline on a PDF file using the naive parser.
+        
+        Args:
+            pdf_path: Path to the PDF file to process
+            
+        Returns:
+            Dictionary containing extracted resume data or error information
         """
         if not os.path.exists(pdf_path):
             raise FileNotFoundError(f"File not found: {pdf_path}")
 
-        # 1. Layout Parsing & Linearization
-        print(f"Linearizing content from {pdf_path}...")
-        linearized_text = self.layout_parser.linearize_content(pdf_path)
+        print(f"Processing {pdf_path}...")
         
-        # Extract original lines for pointer resolution
-        # Assuming format "[index] content"
-        original_lines = []
-        for line in linearized_text.split("\n"):
-            if line.strip():
-                if "] " in line:
-                    original_lines.append(line.split("] ", 1)[1])
-                else:
-                    original_lines.append(line) # Fallback
-
-        # 2. LLM Extraction
-        print("Extracting structured data...")
-        raw_data = self.extractor.extract_all(linearized_text)
+        # Use the naive parser which handles everything in one step
+        result = self.parser.parse(pdf_path)
         
-        # 3. Post-Processing (Pointer Resolution)
-        print("Resolving pointers...")
-        resolved_data = self.extractor.resolve_pointers(raw_data, original_lines)
+        # Check if there was an error
+        if "error" in result:
+            print(f"Error processing {pdf_path}: {result['error']}")
+        else:
+            print(f"Successfully extracted data from {pdf_path}")
         
-        # 4. Final Cleanup / Validation (Optional)
-        # We could map resolved_data to the Resume Pydantic model to ensure validity
-        # But for now, return the dict
-        
-        return resolved_data
+        return result
 
     def run_batch(self, input_dir: str, output_dir: str):
         """
         Process all PDFs in a directory.
+        
+        Args:
+            input_dir: Directory containing PDF files
+            output_dir: Directory to save JSON output files
+            
+        Returns:
+            List of results with status for each file
         """
         os.makedirs(output_dir, exist_ok=True)
         

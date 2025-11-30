@@ -194,6 +194,7 @@ class HybridMatcher(BaseMatcher):
             cv_embedding = self._get_embedding(cv_text)
             
         # 2. If job_candidates provided, save them (mostly for naive strategy or demo)
+        # not used in real case, just for studyinf purpose
         if job_candidates:
             for job in job_candidates:
                 job_id = job.get("job_id", str(hash(job.get("title", "") + job.get("company", ""))))

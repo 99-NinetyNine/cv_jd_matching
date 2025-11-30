@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from core.pipeline import ResumeExtractionPipeline
+from api.routers import auth, candidate
 import shutil
 import os
 import uuid
@@ -16,11 +17,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers
+app.include_router(auth.router)
+app.include_router(candidate.router)
+
 # Initialize Pipeline (Common Class)
 # This class encapsulates all logic (Layout Parsing, Extraction, Evaluation)
 pipeline = ResumeExtractionPipeline()
 
-UPLOAD_DIR = "api_uploads"
+UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @app.post("/extract")
