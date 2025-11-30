@@ -3,8 +3,10 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 from difflib import SequenceMatcher
 import re
+from core.parsing.evaluators.base import BaseEvaluator
 
-class Evaluator:
+class HungarianEvaluator(BaseEvaluator):
+    """ This is based on https://arxiv.org/pdf/2510.09722 """
     def __init__(self):
         pass
 
@@ -41,8 +43,23 @@ class Evaluator:
 
     def align_entities(self, ground_truth: List[Dict], predicted: List[Dict], key_fields: List[str]) -> List[Tuple[Dict, Dict]]:
         """
-        Align entities using Hungarian algorithm.
-        Returns list of (gt_item, pred_item) tuples. Unmatched items are paired with None.
+        Stage 1: Entity Alignment via the Hungarian Algorithm.
+        
+        Challenges addressed:
+        - Quantity mismatch: Handles different numbers of GT vs Predicted entities.
+        - Order mismatch: Matches based on content similarity, not list index.
+        - Partial match: Finds optimal assignment even if fields are imperfect.
+        
+        Method:
+        1. Construct a Similarity Matrix (M x N) where each element is the average 
+           normalized string similarity of 'key_fields' (e.g., company name, position).
+        2. Apply the Hungarian Algorithm (linear_sum_assignment) to find the 
+           one-to-one assignment that maximizes total similarity.
+           
+        Returns:
+            List of (gt_item, pred_item) tuples. 
+            - Unmatched ground truth items are paired with None: (gt, None) -> Missed extraction
+            - Unmatched predicted items are paired with None: (None, pred) -> Spurious extraction
         """
         if not ground_truth and not predicted:
             return []
@@ -65,12 +82,12 @@ class Evaluator:
         for r, c in zip(row_ind, col_ind):
             aligned_pairs.append((ground_truth[r], predicted[c]))
             
-        # Unmatched ground truth
+        # Unmatched ground truth (Missed)
         for i in range(len(ground_truth)):
             if i not in row_ind:
                 aligned_pairs.append((ground_truth[i], None))
                 
-        # Unmatched predicted
+        # Unmatched predicted (Spurious)
         for j in range(len(predicted)):
             if j not in col_ind:
                 aligned_pairs.append((None, predicted[j]))
@@ -79,8 +96,16 @@ class Evaluator:
 
     def evaluate_field(self, gt_val: Any, pred_val: Any, strategy: str = "exact") -> float:
         """
-        Evaluate a single field based on strategy.
-        Strategies: exact, substring, date, text_similarity
+        Stage 2: Multi-Strategy Field Matching.
+        
+        Recognizing that a single "exact match" rule is inadequate, this method 
+        dynamically selects validation rules based on the field's semantic nature.
+        
+        Strategies:
+        - 'date': Period Fields. Normalized (e.g., to YYYY-MM) for flexible matching.
+        - 'substring': Named Entities (e.g., Company, Job Title). Tolerates abbreviations/suffixes.
+        - 'text_similarity': Long Descriptions. Uses edit-distance/SequenceMatcher for paraphrasing.
+        - 'exact': Other fields. Normalized exact match (lowercase, stripped).
         """
         if gt_val is None: gt_val = ""
         if pred_val is None: pred_val = ""
@@ -111,15 +136,11 @@ class Evaluator:
 
     def evaluate_section(self, ground_truth: List[Dict], predicted: List[Dict], config: Dict) -> Dict:
         """
-        Evaluate a whole section (e.g., 'work').
-        config: {
-            "key_fields": ["name", "position"],
-            "fields": {
-                "name": "substring",
-                "startDate": "date",
-                "summary": "text_similarity"
-            }
-        }
+        Orchestrates the Two-Stage Evaluation for a specific section (e.g., 'work').
+        
+        1. Aligns entities using Hungarian Algorithm.
+        2. Performs fine-grained field comparison on aligned pairs.
+        3. Aggregates results into Precision, Recall, and F1.
         """
         key_fields = config.get("key_fields", [])
         aligned_pairs = self.align_entities(ground_truth, predicted, key_fields)
@@ -153,8 +174,12 @@ class Evaluator:
                     field_totals[field] += 1
         
         # Calculate metrics
+        # Precision = TP / (TP + FP) = TP / Total Predicted
         metrics["precision"] = true_positives / total_pred if total_pred > 0 else 0.0
+        
+        # Recall = TP / (TP + FN) = TP / Total Ground Truth
         metrics["recall"] = true_positives / total_gt if total_gt > 0 else 0.0
+        
         if metrics["precision"] + metrics["recall"] > 0:
             metrics["f1"] = 2 * (metrics["precision"] * metrics["recall"]) / (metrics["precision"] + metrics["recall"])
             
