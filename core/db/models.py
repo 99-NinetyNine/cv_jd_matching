@@ -60,6 +60,7 @@ class UserInteraction(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id")
     job_id: str
     action: str # "click", "apply", "dismiss"
+    strategy: Optional[str] = Field(default="pgvector") # "naive", "pgvector"
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 # Engine creation

@@ -56,12 +56,12 @@ async def upload_cv(file: UploadFile = File(...), session: Session = Depends(get
     return {"cv_id": cv_id, "filename": filename, "path": str(file_path)}
 
 @router.post("/candidates/match")
-async def match_candidate(cv_data: dict, session: Session = Depends(get_session)):
+async def match_candidate(cv_data: dict, strategy: str = "pgvector", session: Session = Depends(get_session)):
     # Check cache first
     import hashlib
     # Create a hash of the CV data to use as cache key
     cv_hash = hashlib.md5(json.dumps(cv_data, sort_keys=True).encode()).hexdigest()
-    cache_key = f"match_results:{cv_hash}"
+    cache_key = f"match_results:{strategy}:{cv_hash}"
     cached_results = redis_client.get(cache_key)
     
     if cached_results:
@@ -82,23 +82,22 @@ async def match_candidate(cv_data: dict, session: Session = Depends(get_session)
             text_rep += " ".join([s.get("name", "") if isinstance(s, dict) else str(s) for s in cv_data.get("skills", [])])
         cv_embedding = embeddings.embed_query(text_rep)
 
-    # Query DB for top 50 matches
-    jobs = session.exec(select(Job).order_by(Job.embedding.cosine_distance(cv_embedding)).limit(50)).all()
+    # Query DB for top 50 matches (Only for Pgvector strategy optimization, but let's keep it generic for now)
+    # If strategy is naive, we might need to fetch all jobs or use the strategy implementation directly.
+    # For now, let's rely on the Matcher class to handle it.
     
-    # Prepare job candidates with embeddings
+    # Prepare job candidates (if naive, we need to pass them, if pgvector, it queries DB)
     job_candidates = []
-    for job in jobs:
-        j_dict = job.dict()
-        if job.embedding:
-             j_dict["embedding"] = job.embedding
-        else:
-            cached_emb = redis_client.get(f"jd_embedding:{job.job_id}")
-            if cached_emb:
-                j_dict["embedding"] = np.frombuffer(cached_emb, dtype=np.float64).tolist()
-        
-        job_candidates.append(j_dict)
+    if strategy == "naive":
+        # Fetch all jobs for naive comparison (inefficient but required for naive)
+        jobs = session.exec(select(Job)).all()
+        for job in jobs:
+            j_dict = job.dict()
+            if job.embedding:
+                 j_dict["embedding"] = job.embedding
+            job_candidates.append(j_dict)
     
-    matcher = HybridMatcher()
+    matcher = HybridMatcher(strategy=strategy)
     # Pass embedding to matcher to avoid re-computing
     cv_data_with_emb = cv_data.copy()
     cv_data_with_emb["embedding"] = cv_embedding
@@ -224,6 +223,7 @@ class InteractionCreate(BaseModel):
     user_id: int
     job_id: str
     action: str
+    strategy: str = "pgvector"
 
 @router.post("/interact")
 async def log_interaction(interaction: InteractionCreate, session: Session = Depends(get_session)):
@@ -231,7 +231,8 @@ async def log_interaction(interaction: InteractionCreate, session: Session = Dep
         db_interaction = UserInteraction(
             user_id=interaction.user_id, 
             job_id=interaction.job_id, 
-            action=interaction.action
+            action=interaction.action,
+            strategy=interaction.strategy
         )
         session.add(db_interaction)
         session.commit()

@@ -1,30 +1,47 @@
 from typing import Dict, Any, List, Optional
-from sklearn.metrics.pairwise import cosine_similarity
-from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
 import numpy as np
 from core.matching.base import BaseMatcher
 from core.llm.factory import get_llm
 from langchain_core.prompts import PromptTemplate
 import logging
-from core.cache.redis_cache import redis_client
-import json
-import requests
-import os
-import psycopg2
-from psycopg2.extras import Json
+from core.matching.embeddings import EmbeddingFactory
+from core.matching.strategies import NaiveMatcherStrategy, PgvectorMatcherStrategy
 
 logger = logging.getLogger(__name__)
 
 class HybridMatcher(BaseMatcher):
-    def __init__(self, reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"):
+    """
+    A matcher that combines semantic search (vector similarity) with feature-based scoring (skills, experience).
+    Supports multiple embedding providers (Ollama, Google) and search strategies (Pgvector, Naive).
+    """
+    def __init__(self, 
+                 reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+                 embedding_provider: str = "ollama",
+                 strategy: str = "pgvector",
+                 **kwargs):
+        """
+        Initialize the HybridMatcher.
+
+        Args:
+            reranker_model: Name of the cross-encoder model for reranking.
+            embedding_provider: 'ollama' or 'google'.
+            strategy: 'pgvector' (database) or 'naive' (in-memory).
+            **kwargs: Additional arguments passed to the embedder.
+        """
         self.llm = get_llm()
-        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.embedding_model = "nomic-embed-text" # Or any other model pulled in Ollama
         
-        # Database connection for pgvector
-        self.db_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/cv_matching")
+        # Initialize Embedder
+        self.embedder = EmbeddingFactory.get_embedder(provider=embedding_provider, **kwargs)
         
+        # Initialize Strategy
+        if strategy == "naive":
+            self.strategy = NaiveMatcherStrategy()
+        elif strategy == "pgvector":
+            self.strategy = PgvectorMatcherStrategy()
+        else:
+            raise ValueError(f"Unknown strategy: {strategy}")
+            
         # Initialize reranker
         try:
             self.reranker = CrossEncoder(reranker_model)
@@ -33,52 +50,78 @@ class HybridMatcher(BaseMatcher):
             self.reranker = None
             
     def _get_embedding(self, text: str) -> List[float]:
-        """Get embedding from Ollama with caching."""
-        # Check Redis first
-        import hashlib
-        key = f"cv_embedding_ollama:{hashlib.md5(text.encode()).hexdigest()}"
-        cached = redis_client.get(key)
-        if cached:
-            return np.frombuffer(cached, dtype=np.float64).tolist()
-        
-        try:
-            response = requests.post(
-                f"{self.ollama_base_url}/api/embeddings",
-                json={
-                    "model": self.embedding_model,
-                    "prompt": text
-                }
-            )
-            response.raise_for_status()
-            embedding = response.json()["embedding"]
-            
-            # Cache it
-            redis_client.set(key, np.array(embedding).tobytes(), ttl=86400)
-            return embedding
-        except Exception as e:
-            logger.error(f"Failed to get embedding from Ollama: {e}")
-            # Fallback or re-raise? For now, return empty list or raise
-            raise e
+        return self.embedder.embed_query(text)
 
     def _get_text_representation(self, data: Dict[str, Any]) -> str:
-        """Convert structured data to a text representation."""
-        text = ""
-        if "basics" in data:
-            text += f"Name: {data['basics'].get('name', '')}\n"
-            text += f"Summary: {data['basics'].get('summary', '')}\n"
+        """
+        Convert structured CV data (based on JSON Resume schema) to a text representation for embedding.
         
-        if "skills" in data:
-            skills = [s.get("name", "") if isinstance(s, dict) else str(s) for s in data.get("skills", [])]
-            text += f"Skills: {', '.join(skills)}\n"
+        Args:
+            data: Dictionary containing CV data matching the core.parsing.schema.Resume structure.
             
+        Returns:
+            A single string concatenating key information for semantic search.
+        """
+        text = ""
+        
+        # Basics
+        if "basics" in data:
+            basics = data["basics"]
+            text += f"Name: {basics.get('name', '')}\n"
+            text += f"Label: {basics.get('label', '')}\n"
+            text += f"Summary: {basics.get('summary', '')}\n"
+            if "location" in basics and isinstance(basics["location"], dict):
+                loc = basics["location"]
+                text += f"Location: {loc.get('city', '')}, {loc.get('countryCode', '')}\n"
+        
+        # Skills
+        if "skills" in data:
+            skills_list = []
+            for s in data["skills"]:
+                if isinstance(s, dict):
+                    name = s.get("name", "")
+                    keywords = ", ".join(s.get("keywords", []))
+                    skills_list.append(f"{name} ({keywords})" if keywords else name)
+                else:
+                    skills_list.append(str(s))
+            text += f"Skills: {', '.join(skills_list)}\n"
+            
+        # Work Experience
         if "work" in data:
+            text += "Work Experience:\n"
             for work in data["work"]:
-                text += f"Role: {work.get('position', '')} at {work.get('company', '')}. {work.get('summary', '')}\n"
-                
-        if "title" in data: # For jobs
-            text += f"Title: {data.get('title', '')}\n"
-        if "description" in data: # For jobs
-            text += f"Description: {data.get('description', '')}\n"
+                text += f"- {work.get('position', '')} at {work.get('name', '')}\n"
+                if work.get('summary'):
+                    text += f"  Summary: {work['summary']}\n"
+                if work.get('highlights'):
+                    text += f"  Highlights: {', '.join(work['highlights'])}\n"
+        
+        # Education
+        if "education" in data:
+            text += "Education:\n"
+            for edu in data["education"]:
+                text += f"- {edu.get('studyType', '')} in {edu.get('area', '')} at {edu.get('institution', '')}\n"
+        
+        # Projects
+        if "projects" in data:
+            text += "Projects:\n"
+            for proj in data["projects"]:
+                text += f"- {proj.get('name', '')}: {proj.get('description', '')}\n"
+                if proj.get('highlights'):
+                    text += f"  Highlights: {', '.join(proj['highlights'])}\n"
+
+        # Certificates
+        if "certificates" in data:
+            certs = [f"{c.get('name', '')} from {c.get('issuer', '')}" for c in data["certificates"]]
+            text += f"Certificates: {', '.join(certs)}\n"
+
+        # Job specific fields (if data is a job description)
+        if "title" in data: 
+            text += f"Job Title: {data.get('title', '')}\n"
+        if "description" in data: 
+            text += f"Job Description: {data.get('description', '')}\n"
+        if "company" in data:
+            text += f"Company: {data.get('company', '')}\n"
             
         return text
 
@@ -133,74 +176,14 @@ class HybridMatcher(BaseMatcher):
             return "Could not generate explanation."
 
     def save_job_embedding(self, job_id: str, job_data: Dict[str, Any]):
-        """Save job embedding to pgvector."""
+        """Save job embedding using strategy."""
         job_text = self._get_text_representation(job_data)
         embedding = self._get_embedding(job_text)
-        
-        conn = psycopg2.connect(self.db_url)
-        cur = conn.cursor()
-        try:
-            # Ensure table exists (this should ideally be in a migration)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS jobs (
-                    id TEXT PRIMARY KEY,
-                    data JSONB,
-                    embedding vector(768)
-                );
-            """)
-            # Create HNSW index if not exists
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS jobs_embedding_idx ON jobs USING hnsw (embedding vector_cosine_ops);
-            """)
-            
-            cur.execute("""
-                INSERT INTO jobs (id, data, embedding)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (id) DO UPDATE 
-                SET data = EXCLUDED.data, embedding = EXCLUDED.embedding;
-            """, (job_id, Json(job_data), embedding))
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Failed to save job embedding: {e}")
-            raise e
-        finally:
-            cur.close()
-            conn.close()
-
-    def search_jobs(self, cv_embedding: List[float], limit: int = 10) -> List[Dict[str, Any]]:
-        """Search jobs using pgvector."""
-        conn = psycopg2.connect(self.db_url)
-        cur = conn.cursor()
-        try:
-            # HNSW search
-            cur.execute("""
-                SELECT id, data, 1 - (embedding <=> %s::vector) as similarity
-                FROM jobs
-                ORDER BY embedding <=> %s::vector
-                LIMIT %s;
-            """, (cv_embedding, cv_embedding, limit))
-            
-            results = []
-            for row in cur.fetchall():
-                results.append({
-                    "job_id": row[0],
-                    "data": row[1],
-                    "similarity": row[2]
-                })
-            return results
-        except Exception as e:
-            logger.error(f"Job search failed: {e}")
-            return []
-        finally:
-            cur.close()
-            conn.close()
+        self.strategy.save_job(job_id, job_data, embedding)
 
     def match(self, cv_data: Dict[str, Any], job_candidates: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
-        Match CV against jobs. 
-        If job_candidates is provided, we might index them on the fly or just use them (but we prefer pgvector now).
-        For this implementation, we assume jobs are already in DB or we insert them first if provided.
+        Match CV against jobs using the configured strategy.
         """
         cv_text = self._get_text_representation(cv_data)
         
@@ -210,16 +193,14 @@ class HybridMatcher(BaseMatcher):
         else:
             cv_embedding = self._get_embedding(cv_text)
             
-        # 2. If job_candidates provided, save them to DB first (for demo purposes)
+        # 2. If job_candidates provided, save them (mostly for naive strategy or demo)
         if job_candidates:
             for job in job_candidates:
                 job_id = job.get("job_id", str(hash(job.get("title", "") + job.get("company", ""))))
                 self.save_job_embedding(job_id, job)
         
-        # 3. Vector Search (Semantic)
-        # We search against ALL jobs in DB. In a real scenario, we might want to filter by job_candidates IDs if provided.
-        # But here we assume we want to find best matches from the DB.
-        semantic_results = self.search_jobs(cv_embedding, limit=20)
+        # 3. Vector Search
+        semantic_results = self.strategy.search(cv_embedding, limit=20)
         
         if not semantic_results:
             return []
