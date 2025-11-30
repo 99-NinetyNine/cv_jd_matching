@@ -3,15 +3,20 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import CandidateDashboard from './pages/CandidateDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
+import HirerDashboard from './pages/HirerDashboard';
 
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
         <Route path="/dashboard" element={<CandidateDashboard />} />
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/hirer" element={<HirerDashboard />} />
         <Route path="/" element={<Navigate to="/login" replace />} />
+
       </Routes>
     </Router>
   );

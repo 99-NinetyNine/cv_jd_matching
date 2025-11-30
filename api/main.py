@@ -1,17 +1,13 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
-import json
-import asyncio
+from core.pipeline import ResumeExtractionPipeline
+import shutil
+import os
+import uuid
 
-from core.graph.parsing_graph import create_parsing_graph
-from core.graph.matching_graph import create_matching_graph
-from core.db.engine import create_db_and_tables
-from api.routers import hirer, candidate, auth, admin
+app = FastAPI(title="Resume Extraction API")
 
-app = FastAPI(title="CV-Job Matching System")
-
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,78 +16,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="api/static"), name="static")
+# Initialize Pipeline (Common Class)
+# This class encapsulates all logic (Layout Parsing, Extraction, Evaluation)
+pipeline = ResumeExtractionPipeline()
 
-# Include Routers
-app.include_router(auth.router)
-app.include_router(admin.router)
-app.include_router(hirer.router, prefix="/jobs")
-app.include_router(candidate.router)
+UPLOAD_DIR = "api_uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Startup event handler
-@app.on_event("startup")
-def on_startup():
-    create_db_and_tables()
-
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
-
-@app.get("/")
-async def root():
-    return {"message": "Welcome to CV-Job Matching System API"}
-
-@app.websocket("/ws/process/{client_id}")
-async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    await websocket.accept()
+@app.post("/extract")
+async def extract_resume(file: UploadFile = File(...)):
+    """
+    Upload a PDF resume and get structured JSON data.
+    """
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+    
+    # Save file
+    file_id = str(uuid.uuid4())
+    file_path = os.path.join(UPLOAD_DIR, f"{file_id}.pdf")
+    
     try:
-        while True:
-            data = await websocket.receive_text()
-            message = json.loads(data)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
             
-            if message["type"] == "parse_cv":
-                filename = message["filename"]
-                file_path = str(UPLOAD_DIR / filename)
-                
-                graph = create_parsing_graph()
-                
-                await websocket.send_json({"status": "Starting parsing workflow..."})
-                
-                inputs = {"file_path": file_path}
-                async for event in graph.astream(inputs):
-                    for key, value in event.items():
-                        if "status" in value:
-                            await websocket.send_json({"status": value["status"]})
-                        if "structured_data" in value:
-                            PROCESSED_CVS[client_id] = value["structured_data"]
-                            await websocket.send_json({
-                                "status": "Parsing complete", 
-                                "data": value["structured_data"]
-                            })
-                            
-            elif message["type"] == "match_jobs":
-                if client_id not in PROCESSED_CVS:
-                    await websocket.send_json({"error": "No CV parsed for this client yet."})
-                    continue
-                    
-                cv_data = PROCESSED_CVS[client_id]
-                graph = create_matching_graph()
-                
-                await websocket.send_json({"status": "Starting matching workflow..."})
-                
-                inputs = {
-                    "cv_data": cv_data,
-                    "job_descriptions": JOB_DESCRIPTIONS
-                }
-                
-                async for event in graph.astream(inputs):
-                    for key, value in event.items():
-                        if "status" in value:
-                            await websocket.send_json({"status": value["status"]})
-                        if "matches" in value:
-                            await websocket.send_json({
-                                "status": "Matching complete", 
-                                "matches": value["matches"]
-                            })
+        # Run Pipeline
+        result = pipeline.process(file_path)
+        
+        # Cleanup (optional)
+        # os.remove(file_path)
+        
+        return result
+        
+    except Exception as e:
+        # Log error
+        print(f"Error processing file {file_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-    except WebSocketDisconnect:
-        print(f"Client #{client_id} disconnected")
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}

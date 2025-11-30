@@ -1,43 +1,75 @@
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field, HttpUrl, EmailStr
 
 class Location(BaseModel):
+    address: Optional[str] = None
+    postalCode: Optional[str] = None
     city: Optional[str] = None
     countryCode: Optional[str] = None
     region: Optional[str] = None
 
+class Profile(BaseModel):
+    network: Optional[str] = None
+    username: Optional[str] = None
+    url: Optional[str] = None
+
 class Basics(BaseModel):
     name: Optional[str] = None
     label: Optional[str] = None
+    image: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     url: Optional[str] = None
     summary: Optional[str] = None
-    location: Optional[Location] = None
-    profiles: List[dict] = Field(default_factory=list)
+    location: Optional[Location] = Field(default_factory=Location)
+    profiles: List[Profile] = Field(default_factory=list)
 
 class Work(BaseModel):
-    name: Optional[str] = Field(None, alias="company")
+    name: Optional[str] = None
     position: Optional[str] = None
     url: Optional[str] = None
-    company: Optional[str] = Field(description="Company name")
-    position: Optional[str] = Field(description="Position title")
+    startDate: Optional[str] = None
+    endDate: Optional[str] = None
+    summary: Optional[str] = None
+    highlights: List[str] = Field(default_factory=list)
+
+class Volunteer(BaseModel):
+    organization: Optional[str] = None
+    position: Optional[str] = None
     url: Optional[str] = None
-    startDate: Optional[str] = Field(description="Start date YYYY-MM")
-    endDate: Optional[str] = Field(description="End date YYYY-MM")
-    summary: Optional[str] = Field(description="Summary of responsibilities")
-    highlights: Optional[List[str]] = Field(description="Key achievements")
+    startDate: Optional[str] = None
+    endDate: Optional[str] = None
+    summary: Optional[str] = None
+    highlights: List[str] = Field(default_factory=list)
 
 class Education(BaseModel):
-    institution: Optional[str] = Field(description="Name of the institution")
+    institution: Optional[str] = None
     url: Optional[str] = None
-    area: Optional[str] = Field(description="Area of study")
-    studyType: Optional[str] = Field(description="Type of degree")
-    startDate: Optional[str] = Field(description="Start date YYYY-MM")
-    endDate: Optional[str] = Field(description="End date YYYY-MM")
-    score: Optional[str] = Field(description="Grade or GPA")
-    percentage: Optional[float] = Field(description="Percentage score if applicable")
+    area: Optional[str] = None
+    studyType: Optional[str] = None
+    startDate: Optional[str] = None
+    endDate: Optional[str] = None
+    score: Optional[str] = None
     courses: List[str] = Field(default_factory=list)
+
+class Award(BaseModel):
+    title: Optional[str] = None
+    date: Optional[str] = None
+    awarder: Optional[str] = None
+    summary: Optional[str] = None
+
+class Certificate(BaseModel):
+    name: Optional[str] = None
+    date: Optional[str] = None
+    issuer: Optional[str] = None
+    url: Optional[str] = None
+
+class Publication(BaseModel):
+    name: Optional[str] = None
+    publisher: Optional[str] = None
+    releaseDate: Optional[str] = None
+    url: Optional[str] = None
+    summary: Optional[str] = None
 
 class Skill(BaseModel):
     name: Optional[str] = None
@@ -48,18 +80,32 @@ class Language(BaseModel):
     language: Optional[str] = None
     fluency: Optional[str] = None
 
+class Interest(BaseModel):
+    name: Optional[str] = None
+    keywords: List[str] = Field(default_factory=list)
+
+class Reference(BaseModel):
+    name: Optional[str] = None
+    reference: Optional[str] = None
+
 class Project(BaseModel):
-    name: str
-    description: Optional[str]
-    url: Optional[str]
+    name: Optional[str] = None
+    startDate: Optional[str] = None
+    endDate: Optional[str] = None
+    description: Optional[str] = None
+    highlights: List[str] = Field(default_factory=list)
+    url: Optional[str] = None
 
 class Resume(BaseModel):
-    basics: Optional[Basics] = Field(description="Basic information")
-    work: Optional[List[Work]] = Field(description="Work experience")
-    education: Optional[List[Education]] = Field(description="Education history")
-    skills: Optional[List[Skill]] = Field(description="Skills")
-    languages: Optional[List[Language]] = Field(description="Languages")
-    projects: Optional[List[Project]] = Field(description="Projects")
-    year_gap_duration: Optional[float] = Field(description="Total duration of career gaps in years")
-    interests: List[dict] = Field(default_factory=list)
-    references: List[dict] = Field(default_factory=list)
+    basics: Optional[Basics] = Field(default_factory=Basics)
+    work: List[Work] = Field(default_factory=list)
+    volunteer: List[Volunteer] = Field(default_factory=list)
+    education: List[Education] = Field(default_factory=list)
+    awards: List[Award] = Field(default_factory=list)
+    certificates: List[Certificate] = Field(default_factory=list)
+    publications: List[Publication] = Field(default_factory=list)
+    skills: List[Skill] = Field(default_factory=list)
+    languages: List[Language] = Field(default_factory=list)
+    interests: List[Interest] = Field(default_factory=list)
+    references: List[Reference] = Field(default_factory=list)
+    projects: List[Project] = Field(default_factory=list)

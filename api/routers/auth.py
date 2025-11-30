@@ -12,10 +12,12 @@ router = APIRouter(tags=["auth"])
 class UserCreate(BaseModel):
     email: str
     password: str
+    role: str = "candidate"
 
 class Token(BaseModel):
     access_token: str
     token_type: str
+    role: str
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -28,7 +30,7 @@ async def register(user_in: UserCreate, session: Session = Depends(get_session))
     
     # Create user
     hashed_password = get_password_hash(user_in.password)
-    db_user = User(email=user_in.email, password_hash=hashed_password)
+    db_user = User(email=user_in.email, password_hash=hashed_password, role=user_in.role)
     session.add(db_user)
     session.commit()
     session.refresh(db_user)
@@ -38,7 +40,7 @@ async def register(user_in: UserCreate, session: Session = Depends(get_session))
     access_token = create_access_token(
         data={"sub": db_user.email}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "role": db_user.role}
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
@@ -53,7 +55,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     access_token = create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "role": user.role}
 
 # Dependency to get current user
 async def get_current_user(token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)):

@@ -1,0 +1,51 @@
+{
+  "basics": {
+    "name": "Mock User",
+    "label": "Developer",
+    "image": null,
+    "email": "mock@example.com",
+    "phone": null,
+    "url": null,
+    "summary": "Experienced mock developer.",
+    "location": {
+      "address": null,
+      "postalCode": null,
+      "city": "Mock City",
+      "countryCode": "US",
+      "region": null
+    },
+    "profiles": []
+  },
+  "work": [
+    {
+      "name": "Mock Corp",
+      "position": "Senior Mock",
+      "url": null,
+      "startDate": "2020-01",
+      "endDate": "Present",
+      "summary": "Did mock things.",
+      "highlights": [
+        "Mocked a lot"
+      ]
+    }
+  ],
+  "volunteer": [],
+  "education": [],
+  "awards": [],
+  "certificates": [],
+  "publications": [],
+  "skills": [
+    {
+      "name": "Mocking",
+      "level": null,
+      "keywords": [
+        "Jest",
+        "Pytest"
+      ]
+    }
+  ],
+  "languages": [],
+  "interests": [],
+  "references": [],
+  "projects": []
+}

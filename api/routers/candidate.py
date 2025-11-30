@@ -3,6 +3,9 @@ from pathlib import Path
 import uuid
 import json
 import asyncio
+from sqlmodel import Session, select
+from pydantic import BaseModel
+from core.db.engine import get_session
 from core.db.models import Job, CV, ParsingCorrection, UserInteraction
 from core.matching.semantic_matcher import HybridMatcher
 from core.parsing.pdf_parser import PDFParser
@@ -22,6 +25,9 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 async def upload_cv(file: UploadFile = File(...), session: Session = Depends(get_session)):
     # Validation
     if file.content_type != "application/pdf":
+        # though we can expect user to upload docs and convert it into pdf 
+        # or if user uploads text, then it's more simple, for now let's just allow pdf.
+        # # NOTE: docx => pdf conversion works depending on host os(libreoffics for linux or word processors for windows or mac)
         raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
         
     content = await file.read()

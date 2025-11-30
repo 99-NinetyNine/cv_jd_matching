@@ -30,5 +30,6 @@ pdf2image
 Pillow
 redis
 celery
-passlib[bcrypt]
+passlib[argon2]
+argon2-cffi
 python-jose[cryptography]

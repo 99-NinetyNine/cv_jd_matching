@@ -126,14 +126,15 @@ class PDFParser(BaseParser):
             return {"error": str(e)}
             
         # 2. Hybrid Extraction: Regex Rules (High Confidence)
-        regex_data = {
-            "email": RegexRules.extract_emails(full_text),
-            "phone": RegexRules.extract_phones(full_text),
-            "links": RegexRules.extract_links(full_text),
-            # "dates": RegexRules.extract_dates(full_text) # Can be noisy, use with care
-        }
-        return regex_data
-        # test
+        # This did not work perfectly, so it can be removed..
+        # regex_data = {
+        #     "email": RegexRules.extract_emails(full_text),
+        #     "phone": RegexRules.extract_phones(full_text),
+        #     "links": RegexRules.extract_links(full_text),
+        #     # "dates": RegexRules.extract_dates(full_text) # Can be noisy, use with care
+        # }
+        # return regex_data
+
         # 3. LLM Extraction
         prompt = PromptTemplate(
             template="""You are an expert CV parser. Extract structured info from the CV.
@@ -152,26 +153,8 @@ class PDFParser(BaseParser):
         try:
             resume_data = chain.invoke({"cv_text": full_text})
             parsed_dict = resume_data.model_dump()
-            
-            # 4. Merge Logic (Hybrid)
-            # Override/Augment LLM results with Regex if LLM missed them or for validation
-            if not parsed_dict.get("basics", {}).get("email") and regex_data["email"]:
-                parsed_dict.setdefault("basics", {})["email"] = regex_data["email"][0]
-                
-            if not parsed_dict.get("basics", {}).get("phone") and regex_data["phone"]:
-                parsed_dict.setdefault("basics", {})["phone"] = regex_data["phone"][0]
-                
-            # Merge links
-            if regex_data["links"]:
-                profiles = parsed_dict.get("basics", {}).get("profiles", [])
-                existing_urls = [p.get("url") for p in profiles]
-                
-                for network, url in regex_data["links"].items():
-                    if url not in existing_urls:
-                        profiles.append({"network": network, "url": url})
-                
-                parsed_dict.setdefault("basics", {})["profiles"] = profiles
 
+            # any additional processing can be done here            
             return parsed_dict
             
         except OutputParserException as e:
