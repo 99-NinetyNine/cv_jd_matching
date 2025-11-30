@@ -21,44 +21,6 @@ def get_llm(**kwargs) -> BaseChatModel:
     # Check environment variable for base URL if needed, otherwise default to localhost
     base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     
-    if model_name == "mock":
-        from langchain_core.messages import AIMessage
-        from langchain_community.chat_models import FakeListChatModel
-        # Return a FakeListChatModel that returns a valid JSON string for a Resume
-        # We need it to return enough responses for the loop
-        mock_resume = {
-            "basics": {
-                "name": "Mock User",
-                "label": "Developer",
-                "email": "mock@example.com",
-                "summary": "Experienced mock developer.",
-                "location": {"city": "Mock City", "countryCode": "US"},
-                "profiles": []
-            },
-            "work": [
-                {
-                    "name": "Mock Corp",
-                    "position": "Senior Mock",
-                    "startDate": "2020-01",
-                    "endDate": "Present",
-                    "summary": "Did mock things.",
-                    "highlights": ["Mocked a lot"]
-                }
-            ],
-            "education": [],
-            "skills": [{"name": "Mocking", "keywords": ["Jest", "Pytest"]}],
-            "projects": [],
-            "awards": [],
-            "certificates": [],
-            "publications": [],
-            "languages": [],
-            "interests": [],
-            "references": [],
-            "volunteer": []
-        }
-        import json
-        return FakeListChatModel(responses=[json.dumps(mock_resume)] * 100)
-
     if model_name.startswith("gpt"):
         return ChatOpenAI(model=model_name, **kwargs)
     elif model_name.startswith("gemini"):

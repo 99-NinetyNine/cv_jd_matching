@@ -15,6 +15,8 @@ A state-of-the-art platform for parsing CVs and matching them with job descripti
 - Python 3.10+
 - Docker & Docker Compose
 - Ollama (for local LLMs)
+  - Ensure `nomic-embed-text` model is pulled: `ollama pull nomic-embed-text`
+  - Or let `docker-compose` handle it automatically.
 
 ### Installation
 1. Clone the repository.
@@ -45,6 +47,3 @@ jupyter notebook research/
 - **Core**: LangChain, LangGraph
 - **Database**: PostgreSQL + pgvector
 - **LLM**: Ollama (Llama 3 recommended)
-
-## Bibliography
-See `latex/bibliography.bib` for references.

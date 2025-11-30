@@ -41,6 +41,11 @@ sleep 10
 echo -e "${GREEN}Initializing database...${NC}"
 docker exec -i infra-db-1 psql -U postgres -d cv_matching < infra/init_db.sql
 
+# 5. Initialize Ollama Model (if not handled by docker-compose)
+echo -e "${GREEN}Ensuring Ollama model is pulled...${NC}"
+# We try to pull via the exposed port just in case
+curl -X POST http://localhost:11434/api/pull -d '{"name": "nomic-embed-text"}' || echo "Ollama might be pulling automatically via docker-compose, skipping manual pull."
+
 # 5. Frontend Setup (Optional, if running locally)
 if [ -d "web" ]; then
     echo -e "${GREEN}Setting up frontend...${NC}"

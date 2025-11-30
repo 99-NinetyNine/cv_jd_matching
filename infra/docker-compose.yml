@@ -40,6 +40,23 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    healthcheck:
+      test: [ "CMD", "ollama", "list" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - "-c"
+      - "sleep 3; ollama pull nomic-embed-text"
+    environment:
+      - OLLAMA_HOST=ollama:11434
 
   worker:
     build:

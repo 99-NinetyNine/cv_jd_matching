@@ -63,6 +63,7 @@ core/parsing/tests_data/resume_and_texts_kaggle/all/**
 
 # job desc data
 core/matching/job_descs/job_descriptions.csv
+core/matching/job_descs/sampled.csv
 
 # Allow c folder
 !core/parsing/tests_data/resume_and_texts_kaggle/some
