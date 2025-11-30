@@ -93,8 +93,10 @@ def save_job_with_embedding(
     Returns:
         Created Job instance
     """
-    # Generate job_id if not provided
-    job_id = job_data.get('job_id', str(uuid.uuid4()))
+    # Generate job_id if not provided or None
+    job_id = job_data.get('job_id')
+    if not job_id:
+        job_id = str(uuid.uuid4())
     
     # Create Job instance
     job = Job(

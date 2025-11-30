@@ -165,7 +165,9 @@ class HybridMatcher(BaseMatcher):
             """,
             input_variables=["cv_text", "job_text", "score", "factors"]
         )
-        
+        return "very good!"
+        # TODO
+
         chain = prompt | self.llm
         try:
             return chain.invoke({
@@ -196,7 +198,7 @@ class HybridMatcher(BaseMatcher):
         cv_text = self._get_text_representation(cv_data)
         
         # 1. Get CV Embedding (use ID-based caching if cv_id provided)
-        if "embedding" in cv_data and cv_data["embedding"]:
+        if "embedding" in cv_data and cv_data["embedding"] is not None and len(cv_data["embedding"]) > 0:
             cv_embedding = cv_data["embedding"]
         else:
             if cv_id:

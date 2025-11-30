@@ -79,6 +79,7 @@ async def create_job(
         )
         
         # Schedule background task to compute embedding
+        # TODO: this needs to be done in batch 
         background_tasks.add_task(
             update_job_embedding,
             job_id=db_job.job_id,
@@ -160,3 +161,5 @@ async def delete_job(
         logger.warning(f"Failed to clear cache for job {job_id}: {e}")
     
     return {"status": "Job deleted successfully", "job_id": job_id}
+
+# TODO: if JD is updated then may need have to recompute embeddings

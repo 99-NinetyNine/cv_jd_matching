@@ -26,7 +26,7 @@ def match_cv_task(cv_data):
         
         # 1. Get Embedding
         cv_embedding = None
-        if "embedding" in cv_data and cv_data["embedding"]:
+        if "embedding" in cv_data and cv_data["embedding"] is not None and len(cv_data["embedding"]) > 0:
              cv_embedding = cv_data["embedding"]
         else:
             # If not provided, we might need to compute it. 
@@ -42,6 +42,9 @@ def match_cv_task(cv_data):
 
         # 2. Fetch Candidates
         if cv_embedding:
+             # Convert to list if NumPy array
+             if isinstance(cv_embedding, np.ndarray):
+                 cv_embedding = cv_embedding.tolist()
              jobs = session.exec(select(Job).order_by(Job.embedding.cosine_distance(cv_embedding)).limit(50)).all()
         else:
              jobs = session.exec(select(Job)).limit(50).all()
@@ -49,7 +52,7 @@ def match_cv_task(cv_data):
         job_candidates = []
         for job in jobs:
             j_dict = job.dict()
-            if job.embedding:
+            if job.embedding is not None and len(job.embedding) > 0:
                  j_dict["embedding"] = job.embedding
             else:
                 cached_emb = redis_client.get(f"jd_embedding:{job.job_id}")

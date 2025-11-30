@@ -18,14 +18,14 @@ def get_llm(**kwargs) -> BaseChatModel:
         BaseChatModel: An instance of a LangChain chat model
     """
     model_name = os.getenv("LLM_MODEL", "llama3")
-    # Check environment variable for base URL if needed, otherwise default to localhost
-    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     print("model_name", model_name)
     if model_name.startswith("gpt"):
         return ChatOpenAI(model=model_name, **kwargs)
     elif model_name.startswith("gemini"):
         return ChatGoogleGenerativeAI(model=model_name, **kwargs)
     else:
+        # Check environment variable for base URL if needed, otherwise default to localhost
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         return ChatOllama(
             model=model_name,
             base_url=base_url,
