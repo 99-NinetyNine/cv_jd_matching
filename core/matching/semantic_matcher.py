@@ -195,52 +195,84 @@ class HybridMatcher(BaseMatcher):
             job_candidates: Optional list of job candidates (for naive strategy)
             cv_id: Optional CV ID for ID-based embedding caching
         """
+        print(f"[MATCH] Starting match process for CV ID: {cv_id}")
+        print(f"[MATCH] CV data keys: {list(cv_data.keys())}")
+        print(f"[MATCH] Job candidates provided: {len(job_candidates) if job_candidates else 0}")
+        
         cv_text = self._get_text_representation(cv_data)
+        print(f"[MATCH] CV text representation length: {len(cv_text)} chars")
+        print(f"[MATCH] CV text preview: {cv_text[:200]}...")
         
         # 1. Get CV Embedding (use ID-based caching if cv_id provided)
         if "embedding" in cv_data and cv_data["embedding"] is not None and len(cv_data["embedding"]) > 0:
             cv_embedding = cv_data["embedding"]
+            print(f"[MATCH] Using pre-computed CV embedding from cv_data, dimension: {len(cv_embedding)}")
         else:
             if cv_id:
+                print(f"[MATCH] Generating embedding with ID-based caching for CV: {cv_id}")
                 cv_embedding = self._get_embedding(cv_text, entity_id=cv_id, entity_type='cv')
             else:
+                print("[MATCH] Generating embedding without caching")
                 cv_embedding = self._get_embedding(cv_text)
+            print(f"[MATCH] Generated CV embedding, dimension: {len(cv_embedding)}")
             
         # 2. If job_candidates provided, save them (mostly for naive strategy or demo)
         # not used in real case, just for studyinf purpose
         if job_candidates:
-            for job in job_candidates:
+            print(f"[MATCH] Saving {len(job_candidates)} job candidates to strategy")
+            for idx, job in enumerate(job_candidates):
                 job_id = job.get("job_id", str(hash(job.get("title", "") + job.get("company", ""))))
+                print(f"[MATCH] Saving job {idx+1}/{len(job_candidates)}: {job_id} - {job.get('title', 'Unknown')}")
                 self.save_job_embedding(job_id, job)
         
-        # 3. Vector Search
-        semantic_results = self.strategy.search(cv_embedding, limit=20)
+        
+        # 3. Vector Search - Convert NumPy array to list for pgvector compatibility
+        import numpy as np
+        embedding_for_search = cv_embedding.tolist() if isinstance(cv_embedding, np.ndarray) else cv_embedding
+        print(f"[MATCH] Embedding type for search: {type(embedding_for_search)}, is numpy: {isinstance(cv_embedding, np.ndarray)}")
+        print(f"[MATCH] Starting vector search with limit=20 using strategy: {type(self.strategy).__name__}")
+        
+        semantic_results = self.strategy.search(embedding_for_search, limit=20)
+        print(f"[MATCH] Vector search returned {len(semantic_results)} results")
         
         if not semantic_results:
+            logger.warning("[MATCH] No semantic results found, returning empty list")
             return []
 
         # 4. Feature Matching & Reranking
         cv_skills = [s.get("name", "") if isinstance(s, dict) else str(s) for s in cv_data.get("skills", [])]
+        print(f"[MATCH] Extracted {len(cv_skills)} skills from CV: {cv_skills}")
         
         results = []
-        for res in semantic_results:
+        for idx, res in enumerate(semantic_results):
             job = res["data"]
+            job_id = res["job_id"]
+            job_title = job.get("title", "Unknown")
+            print(f"[MATCH] Processing result {idx+1}/{len(semantic_results)}: Job {job_id} - {job_title}")
+            
             job_text = self._get_text_representation(job)
+            print(f"[MATCH]   Job text length: {len(job_text)} chars")
             
             # Skills Score
             skills_score = 0.5
             if "skills" in job:
                  job_skills = job["skills"]
                  skills_score = self._calculate_skills_score(cv_skills, job_skills)
+                 print(f"[MATCH]   Skills match: {skills_score:.3f} (CV: {len(cv_skills)}, Job: {len(job_skills)})")
+            else:
+                print(f"[MATCH]   No skills in job, using default score: {skills_score}")
             
             # Experience Score
             experience_score = self._calculate_experience_score(cv_data.get("work", []), job)
+            print(f"[MATCH]   Experience score: {experience_score:.3f}")
             
             # Semantic Score
             semantic_score = float(res["similarity"])
+            print(f"[MATCH]   Semantic similarity: {semantic_score:.3f}")
             
             # Weighted Sum
             final_score = (semantic_score * 0.5) + (skills_score * 0.3) + (experience_score * 0.2)
+            print(f"[MATCH]   Final score: {final_score:.3f} (sem: {semantic_score*0.5:.3f}, skills: {skills_score*0.3:.3f}, exp: {experience_score*0.2:.3f})")
             
             results.append({
                 "job_id": res["job_id"],
@@ -257,29 +289,44 @@ class HybridMatcher(BaseMatcher):
             })
             
         # Sort by score
+        print(f"[MATCH] Sorting {len(results)} results by match score")
         results.sort(key=lambda x: x["match_score"], reverse=True)
+        print(f"[MATCH] Top 3 scores after sorting: {[r['match_score'] for r in results[:3]]}")
         
         # 5. Reranking (Top 10)
         top_k = results[:10]
+        print(f"[MATCH] Reranking top {len(top_k)} results")
         if self.reranker:
             pairs = [[cv_text, res["job_text"]] for res in top_k]
+            print(f"[MATCH] Created {len(pairs)} pairs for reranking")
             try:
                 rerank_scores = self.reranker.predict(pairs)
+                print(f"[MATCH] Reranker scores: {[float(s) for s in rerank_scores]}")
                 for i, res in enumerate(top_k):
+                    old_score = res["match_score"]
                     res["match_score"] = (res["match_score"] + float(rerank_scores[i])) / 2
+                    print(f"[MATCH]   Job {i+1} score updated: {old_score:.3f} -> {res['match_score']:.3f}")
             except Exception as e:
-                logger.warning(f"Reranking failed: {e}")
+                logger.warning(f"[MATCH] Reranking failed: {e}")
+        else:
+            print("[MATCH] No reranker available, skipping reranking")
                 
         # Re-sort
+        print("[MATCH] Re-sorting after reranking")
         top_k.sort(key=lambda x: x["match_score"], reverse=True)
+        print(f"[MATCH] Top 3 scores after reranking: {[r['match_score'] for r in top_k[:3]]}")
         
         # 6. Explanations (Top 3)
-        for res in top_k[:3]:
+        print(f"[MATCH] Generating explanations for top {min(3, len(top_k))} results")
+        for idx, res in enumerate(top_k[:3]):
+            print(f"[MATCH] Generating explanation for result {idx+1}: {res['job_title']}")
             res["explanation"] = self._explain_match(
                 cv_text, 
                 res["job_text"], 
                 res["match_score"], 
                 res["matching_factors"]
             )
-            
+            print(f"[MATCH]   Explanation generated: {res['explanation'][:100]}...")
+        
+        print(f"[MATCH] Match process complete, returning {len(top_k)} results")
         return top_k
