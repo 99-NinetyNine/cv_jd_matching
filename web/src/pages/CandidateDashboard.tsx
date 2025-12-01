@@ -243,31 +243,24 @@ const CandidateDashboard = () => {
         );
     });
 
-    const CollapsibleSection = memo(({ title, isExpanded, onToggle, children }: any) => (
-        <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
-            <button
-                onClick={onToggle}
-                className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 flex items-center justify-between transition-colors"
-            >
-                <span className="font-semibold text-slate-700">{title}</span>
-                {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-            </button>
-            <AnimatePresence>
-                {isExpanded && (
-                    <motion.div
-                        initial={{ height: 0 }}
-                        animate={{ height: 'auto' }}
-                        exit={{ height: 0 }}
-                        className="overflow-hidden"
-                    >
-                        <div className="p-4 space-y-4">
-                            {children}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-    ));
+    // Fetch recommendations on mount
+    React.useEffect(() => {
+        setStatus('matching'); // Show loading state
+
+        axios.get(`${apiUrl}/recommendations`)
+            .then(res => {
+                setMatches(res.data.matches);
+                setPredictionId(res.data.prediction_id);
+                setCvId(res.data.cv_id);
+                setStatus('complete');
+            })
+            .catch(err => {
+                console.error("Failed to fetch recommendations:", err);
+                // No CV found - show upload form
+                setStatus('idle');
+            });
+    }, [apiUrl]);
+
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -722,3 +715,29 @@ const CandidateDashboard = () => {
 };
 
 export default CandidateDashboard;
+
+const CollapsibleSection = memo(({ title, isExpanded, onToggle, children }: any) => (
+    <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
+        <button
+            onClick={onToggle}
+            className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 flex items-center justify-between transition-colors"
+        >
+            <span className="font-semibold text-slate-700">{title}</span>
+            {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+        </button>
+        <AnimatePresence>
+            {isExpanded && (
+                <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: 'auto' }}
+                    exit={{ height: 0 }}
+                    className="overflow-hidden"
+                >
+                    <div className="p-4 space-y-4">
+                        {children}
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+    </div>
+));
