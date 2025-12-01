@@ -227,7 +227,7 @@ def check_batch_status_task():
                     # it depends...
                 session.add(batch_req)
                 session.commit()
-                
+                # I think we may need to perform upsort bulk here
     except Exception as e:
         logger.error(f"Batch status check failed: {e}")
         return str(e)
