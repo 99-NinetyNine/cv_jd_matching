@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Briefcase, Users, CheckCircle, XCircle, Clock, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { Briefcase, Users, CheckCircle, XCircle, Clock, Eye, ChevronDown, ChevronUp, Crown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Application {
@@ -37,8 +37,18 @@ const HirerDashboard = () => {
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [expandedCandidates, setExpandedCandidates] = useState<Set<number>>(new Set());
     const [loading, setLoading] = useState(false);
+    const [isPremium, setIsPremium] = useState<boolean>(() => {
+        const stored = localStorage.getItem('isPremium');
+        return stored === 'true';
+    });
 
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+    const togglePremium = () => {
+        const newPremiumStatus = !isPremium;
+        setIsPremium(newPremiumStatus);
+        localStorage.setItem('isPremium', newPremiumStatus.toString());
+    };
 
     useEffect(() => {
         fetchJobs();
@@ -138,6 +148,16 @@ const HirerDashboard = () => {
                 </div>
                 <div className="flex items-center gap-4">
                     <button
+                        onClick={togglePremium}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${isPremium
+                                ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white shadow-md'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                    >
+                        <Crown size={16} />
+                        {isPremium ? 'Premium' : 'Go Premium'}
+                    </button>
+                    <button
                         onClick={() => navigate('/hirer/post-job')}
                         className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm"
                     >
@@ -167,8 +187,8 @@ const HirerDashboard = () => {
                                         key={job.job_id}
                                         onClick={() => setSelectedJob(job.job_id)}
                                         className={`w-full text-left p-4 rounded-lg border-2 transition-all ${selectedJob === job.job_id
-                                                ? 'border-indigo-500 bg-indigo-50'
-                                                : 'border-slate-200 hover:border-slate-300'
+                                            ? 'border-indigo-500 bg-indigo-50'
+                                            : 'border-slate-200 hover:border-slate-300'
                                             }`}
                                     >
                                         <div className="font-medium text-slate-900">{job.title}</div>
@@ -197,8 +217,8 @@ const HirerDashboard = () => {
                                                 key={status}
                                                 onClick={() => setStatusFilter(status)}
                                                 className={`px-3 py-1 rounded-lg text-sm font-medium capitalize ${statusFilter === status
-                                                        ? 'bg-indigo-600 text-white'
-                                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                                    ? 'bg-indigo-600 text-white'
+                                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                                     }`}
                                             >
                                                 {status}

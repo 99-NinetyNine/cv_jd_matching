@@ -5,8 +5,7 @@ from pathlib import Path
 import os
 from datetime import datetime
 
-# Assuming we might use OpenAI client, but for now I'll mock/wrap it or use requests if library not available
-# The user provided code snippets using `openai` library.
+# Assuming we might use OpenAI client
 try:
     from openai import OpenAI
 except ImportError:

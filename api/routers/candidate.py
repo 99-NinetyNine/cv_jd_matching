@@ -76,61 +76,14 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
             return
 
         # 2. Parse using shared service (checks DB first)
+        # this can be batched if cv is blindly assumed to be ok, like in linkedin 
         data = get_or_parse_cv(cv_id, file_path, session)
-        
-        # 3. Check for Batch vs Immediate Processing
-        # Logic: Immediate if Premium OR last update > 1 month ago OR never
-        # For demo, we'll assume everyone is non-premium unless specified
-        # and check last_updated.
         
         cv = session.exec(select(CV).where(CV.filename == filename)).first()
         if not cv:
              await websocket.send_json({"status": "error", "message": "CV record not found"})
              return
 
-        # Check if premium (mock) or old
-        is_premium = False # TODO: Fetch from User model via cv.owner_id
-        
-        import datetime
-        last_updated = cv.last_updated
-        needs_update = True
-        if last_updated:
-            delta = datetime.datetime.utcnow() - last_updated
-            if delta.days < 30:
-                needs_update = False
-        
-        should_process_immediately = is_premium or needs_update
-        
-        # Override for demo/testing if needed
-        # should_process_immediately = True 
-        
-        if should_process_immediately:
-            # Compute embedding using shared service with ID-based caching
-            await websocket.send_json({"status": "processing", "message": "Computing embedding (Immediate)..."})
-            embedder = EmbeddingFactory.get_embedder()
-            cv_embedding = compute_cv_embedding(cv_id, data, embedder)
-            
-            cv.embedding = cv_embedding
-            cv.embedding_status = "completed"
-            cv.last_updated = datetime.datetime.utcnow()
-            session.add(cv)
-            session.commit()
-            
-            await websocket.send_json({"status": "parsing_complete", "data": data})
-        else:
-            # Batch Mode
-            cv.embedding_status = "pending_batch"
-            session.add(cv)
-            session.commit()
-            
-            await websocket.send_json({
-                "status": "queued_for_batch", 
-                "message": "CV queued for batch processing (Non-premium/Recent update). Results will be available within 24h.",
-                "data": data
-            })
-            # We still send data so user can review parsing, but matching won't happen yet
-
-        
         # Wait for user confirmation (Review Step)
         try:
             msg = await websocket.receive_json()
@@ -143,16 +96,37 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
                     data, 
                     corrected_data, 
                     session,
-                    embedder=embedder
                 )
         except Exception as e:
             print(f"Error waiting for confirmation: {e}")
+        # 3. Check for Batch vs Immediate Processing
+        # Logic: Immediate if Premium OR last update > 1 month ago OR never
+        # For demo, we'll assume everyone is non-premium unless specified
+        # and check last_updated.
+        # Determine Premium Status
+        import datetime
+        from core.db.models import User
+        is_premium = False
+        if cv.owner_id:
+            user = session.get(User, cv.owner_id)
+            if user:
+                is_premium = user.is_premium
         
-        # this matching is done only when the candidate is premium 
-        # or has last cv updates a month ago or never. 
-        # else mark this cv to be embedded in a batch mode.
+        # TODO: not cv last updated but the cv's owner last cv analyzed date
+        needs_update = True
+        if is_premium is False:
+            last_updated = user.last_cv_analyzed
+            if last_updated:
+                delta = datetime.datetime.utcnow() - last_updated
+                if delta.days < 30:
+                    needs_update = False
         
-        # 3. Matching Started
+        # Decision: Immediate vs Batch Processing
+        should_process_immediately = is_premium or needs_update
+        
+        
+        # Immediate Processing
+        # Matching Started
         await websocket.send_json({"status": "matching_started", "message": "Finding best matches..."})
         
         # Call match_candidate logic directly (no Celery)
@@ -162,32 +136,38 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
         
         if cached_results:
             matches = json.loads(cached_results)
+        
         else:
-            # Get CV from database
-            cv = session.exec(select(CV).where(CV.filename == filename)).first()
-            if not cv or not cv.content:
-                await websocket.send_json({"status": "error", "message": "CV not found"})
-                return
+            if should_process_immediately:
+                # Refresh CV from database
+                cv = session.exec(select(CV).where(CV.filename == filename)).first()
+                if not cv or not cv.content:
+                    await websocket.send_json({"status": "error", "message": "CV not found"})
+                    return
+                
+                # Match using HybridMatcher
+                matcher = HybridMatcher(strategy=strategy)
+                matches = matcher.match(cv_id=cv_id)
+                
+                # Cache results
+                redis_client.set(cache_key, json.dumps(matches), ttl=3600)
             
-            cv_data = cv.content
-            cv_embedding = cv.embedding if (cv.embedding is not None and len(cv.embedding) > 0) else compute_cv_embedding(cv_id, cv_data, embedder)
-            
-            # Match using HybridMatcher
-            matcher = HybridMatcher(strategy=strategy)
-            cv_data_with_emb = cv_data.copy()
-            cv_data_with_emb["embedding"] = cv_embedding
-            matches = matcher.match(cv_data_with_emb, cv_id=cv_id)
-            
-            # Cache results
-            redis_client.set(cache_key, json.dumps(matches), ttl=3600)
-        
-        # Generate unique prediction_id for this matching session
-        prediction_id = str(uuid.uuid4())
-        logger.info(f"Generated prediction_id {prediction_id} for CV {cv_id} with {len(matches)} matches")
-        
-        # Log metric
-        log_metric("recommendation_count", len(matches), {"cv_id": cv_id, "prediction_id": prediction_id})
-        
+                # Generate unique prediction_id for this matching session
+                # TODO:  we can even save the predictions
+                prediction_id = str(uuid.uuid4())
+                logger.info(f"Generated prediction_id {prediction_id} for CV {cv_id} with {len(matches)} matches")
+                
+                # Log metric
+                log_metric("recommendation_count", len(matches), {"cv_id": cv_id, "prediction_id": prediction_id})
+            else:
+                # Batch Mode - Queue for batch processing
+                cv.embedding_status = "pending_batch"
+                session.add(cv)
+                session.commit()
+                # TODO. and take stored predictions for that CV  form the Database
+                
+
+        # anyways return the matches
         await websocket.send_json({
             "status": "complete", 
             "matches": matches,

@@ -157,7 +157,6 @@ def update_cv_with_corrections(
     original_data: Dict[str, Any],
     corrected_data: Dict[str, Any], 
     session: Session,
-    embedder: Optional[Embedder] = None
 ) -> Dict[str, Any]:
     """
     Update CV with user corrections and optionally recompute embedding.
@@ -181,16 +180,13 @@ def update_cv_with_corrections(
             corrected_data=corrected_data
         )
         session.add(correction)
-    
+    else:
+        logger.info(f"No corrections received for CV {cv_id}")
+
     # Update CV record
     cv = session.exec(select(CV).where(CV.filename == f"{cv_id}.pdf")).first()
     if cv:
         cv.content = corrected_data
-        
-        # Recompute embedding if embedder provided
-        if embedder:
-            logger.info(f"Recomputing embedding for corrected CV {cv_id}")
-            cv.embedding = compute_cv_embedding(cv_id, corrected_data, embedder)
         
         session.add(cv)
         session.commit()

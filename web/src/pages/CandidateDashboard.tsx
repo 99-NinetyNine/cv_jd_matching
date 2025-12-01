@@ -1,6 +1,6 @@
 import React, { useState, useCallback, memo } from 'react';
 import axios from 'axios';
-import { Upload, CheckCircle, AlertCircle, Briefcase, MapPin, Building2, TrendingUp, ChevronDown, ChevronUp, Plus, Trash2, Eye, Send } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, Briefcase, MapPin, Building2, TrendingUp, ChevronDown, ChevronUp, Plus, Trash2, Eye, Send, Crown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Match {
@@ -25,8 +25,18 @@ const CandidateDashboard = () => {
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['basics']));
     const [cvId, setCvId] = useState<string | null>(null);
     const [predictionId, setPredictionId] = useState<string | null>(null);
+    const [isPremium, setIsPremium] = useState<boolean>(() => {
+        const stored = localStorage.getItem('isPremium');
+        return stored === 'true';
+    });
 
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+    const togglePremium = () => {
+        const newPremiumStatus = !isPremium;
+        setIsPremium(newPremiumStatus);
+        localStorage.setItem('isPremium', newPremiumStatus.toString());
+    };
 
     const toggleSection = useCallback((section: string) => {
         setExpandedSections(prev => {
@@ -271,6 +281,16 @@ const CandidateDashboard = () => {
                         TalentMatch
                     </div>
                     <div className="flex items-center gap-4">
+                        <button
+                            onClick={togglePremium}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${isPremium
+                                    ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white shadow-md'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
+                        >
+                            <Crown size={16} />
+                            {isPremium ? 'Premium' : 'Go Premium'}
+                        </button>
                         <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold text-xs">JD</div>
                     </div>
                 </div>

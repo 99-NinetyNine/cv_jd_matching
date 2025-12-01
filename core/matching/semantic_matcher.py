@@ -128,7 +128,7 @@ class HybridMatcher(BaseMatcher):
         embedding = self._get_embedding(job_text, entity_id=job_id, entity_type='job')
         self.strategy.save_job(job_id, job_data, embedding)
 
-    def match(self, cv_data: Dict[str, Any], job_candidates: List[Dict[str, Any]] = None, cv_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def match(self, cv_id: str, job_candidates: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Match CV against jobs using the configured strategy.
         
@@ -138,26 +138,12 @@ class HybridMatcher(BaseMatcher):
             cv_id: Optional CV ID for ID-based embedding caching
         """
         print(f"[MATCH] Starting match process for CV ID: {cv_id}")
-        print(f"[MATCH] CV data keys: {list(cv_data.keys())}")
         print(f"[MATCH] Job candidates provided: {len(job_candidates) if job_candidates else 0}")
         
-        cv_text = get_text_representation(cv_data)
-        print(f"[MATCH] CV text representation length: {len(cv_text)} chars")
-        print(f"[MATCH] CV text preview: {cv_text[:200]}...")
-        
         # 1. Get CV Embedding (use ID-based caching if cv_id provided)
-        if "embedding" in cv_data and cv_data["embedding"] is not None and len(cv_data["embedding"]) > 0:
-            cv_embedding = cv_data["embedding"]
-            print(f"[MATCH] Using pre-computed CV embedding from cv_data, dimension: {len(cv_embedding)}")
-        else:
-            if cv_id:
-                print(f"[MATCH] Generating embedding with ID-based caching for CV: {cv_id}")
-                cv_embedding = self._get_embedding(cv_text, entity_id=cv_id, entity_type='cv')
-            else:
-                print("[MATCH] Generating embedding without caching")
-                cv_embedding = self._get_embedding(cv_text)
-            print(f"[MATCH] Generated CV embedding, dimension: {len(cv_embedding)}")
-            
+        print(f"[MATCH] Generating embedding with ID-based caching for CV: {cv_id}")
+        cv_embedding = self._get_embedding(cv_text, entity_id=cv_id, entity_type='cv')
+        
         # 2. If job_candidates provided, save them (mostly for naive strategy or demo)
         # not used in real case, just for studyinf purpose
         if job_candidates:
@@ -192,6 +178,7 @@ class HybridMatcher(BaseMatcher):
             job_title = job.get("title", "Unknown")
             print(f"[MATCH] Processing result {idx+1}/{len(semantic_results)}: Job {job_id} - {job_title}")
             
+            # TODO: Job test is different
             job_text = get_text_representation(job)
             print(f"[MATCH]   Job text length: {len(job_text)} chars")
             
@@ -267,7 +254,7 @@ class HybridMatcher(BaseMatcher):
             if res["match_score"] < 0:
                 print(f"[MATCH] Skipping result {idx+1} due to low score: {res['match_score']}")
                 continue
-                
+            # To save test tokens
             if len(final_results) < 3:
                 print(f"[MATCH] Generating explanation for result {idx+1}: {res['job_title']}")
                 res["explanation"] = self._explain_match(

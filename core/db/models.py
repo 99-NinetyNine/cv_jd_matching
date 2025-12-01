@@ -86,7 +86,9 @@ class User(SQLModel, table=True):
     password_hash: str
     role: str = Field(default="candidate") # candidate, hirer, admin
     is_admin: bool = Field(default=False)
+    is_premium: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_cv_analyzed: Optional[datetime] = None
 
 class SystemMetric(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
