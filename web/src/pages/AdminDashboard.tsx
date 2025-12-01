@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Activity, Users, FileText, Briefcase, Clock, Target, AlertTriangle } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { Activity, Users, FileText, Briefcase, Clock, Target } from 'lucide-react';
 
 const AdminDashboard = () => {
     const [metrics, setMetrics] = useState<any>(null);
@@ -113,6 +113,63 @@ const AdminDashboard = () => {
                         <p><strong>Precision:</strong> 65% of recommendations were relevant (clicked/applied).</p>
                         <p><strong>Recall:</strong> 40% of all relevant jobs were found.</p>
                     </div>
+                </div>
+            </div>
+
+            {/* Batch Management Section */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                        <Briefcase size={18} className="text-slate-400" /> Batch Processing
+                    </h3>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={async () => {
+                                try {
+                                    const token = localStorage.getItem('token');
+                                    await axios.post(`${apiUrl}/admin/batches/trigger`, {}, { headers: { Authorization: `Bearer ${token}` } });
+                                    alert("Batch submission triggered!");
+                                } catch (e) { alert("Failed to trigger batch"); }
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                        >
+                            Trigger Submission
+                        </button>
+                        <button
+                            onClick={async () => {
+                                try {
+                                    const token = localStorage.getItem('token');
+                                    await axios.post(`${apiUrl}/admin/batches/check`, {}, { headers: { Authorization: `Bearer ${token}` } });
+                                    alert("Status check triggered!");
+                                } catch (e) { alert("Failed to check status"); }
+                            }}
+                            className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm"
+                        >
+                            Check Status
+                        </button>
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left text-slate-500">
+                        <thead className="text-xs text-slate-700 uppercase bg-slate-50">
+                            <tr>
+                                <th className="px-6 py-3">Batch ID</th>
+                                <th className="px-6 py-3">Status</th>
+                                <th className="px-6 py-3">Type</th>
+                                <th className="px-6 py-3">Created At</th>
+                                <th className="px-6 py-3">Counts</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {/* TODO: Fetch and map batches here. For now static placeholder or fetch in useEffect */}
+                            <tr>
+                                <td className="px-6 py-4" colSpan={5}>
+                                    <span className="text-slate-400 italic">Load batches to see history... (Implement fetch in useEffect)</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

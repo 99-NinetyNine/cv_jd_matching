@@ -1,6 +1,5 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
-import { Briefcase, ArrowRight, Zap, Globe, Cpu, BarChart, Users, CheckCircle } from 'lucide-react';
+import { Briefcase, ArrowRight, Zap, Globe, Cpu, BarChart, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const Landing = () => {

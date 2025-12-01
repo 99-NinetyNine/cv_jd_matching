@@ -76,7 +76,21 @@ class HybridMatcher(BaseMatcher):
         return 0.0
 
     def _explain_match(self, cv_text: str, job_text: str, score: float, factors: Dict[str, float]) -> str:
-        """Generate an explanation for the match using LLM."""
+        """
+        Generate an explanation for the match using LLM.
+        For real-time requests, this calls LLM immediately.
+        For batch processing, this might be skipped or handled differently.
+        """
+        # If we want to batch explanations, we shouldn't call this here for real-time requests
+        # unless we are okay with waiting.
+        # The user request implies batching "explain match" too.
+        # This method is currently called by match() which is real-time.
+        # To support batching, we'd need a separate flow where we save the match details 
+        # and process them later.
+        
+        # For now, we'll keep the immediate implementation but return a placeholder if LLM fails
+        # or if we decide to defer it.
+        
         prompt = PromptTemplate(
             template="""You are an expert HR assistant. Explain why this candidate is a good match for the job.
             
@@ -93,11 +107,11 @@ class HybridMatcher(BaseMatcher):
             """,
             input_variables=["cv_text", "job_text", "score", "factors"]
         )
-        return "very good!"
-        # TODO
-
-        chain = prompt | self.llm
+        
+        # return "very good!" # Placeholder
+        
         try:
+            chain = prompt | self.llm
             return chain.invoke({
                 "cv_text": cv_text[:1000], 
                 "job_text": job_text[:1000], 

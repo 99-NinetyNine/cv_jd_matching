@@ -49,7 +49,7 @@ async def upload_cv(file: UploadFile = File(...), session: Session = Depends(get
         buffer.write(content)
         
     # Create initial CV record
-    cv = CV(filename=filename, content={})
+    cv = CV(filename=filename, content={}, embedding_status="pending")
     session.add(cv)
     session.commit()
     session.refresh(cv)
@@ -78,18 +78,58 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
         # 2. Parse using shared service (checks DB first)
         data = get_or_parse_cv(cv_id, file_path, session)
         
-        # 3. Compute embedding using shared service with ID-based caching
-        embedder = EmbeddingFactory.get_embedder()
-        cv_embedding = compute_cv_embedding(cv_id, data, embedder)
+        # 3. Check for Batch vs Immediate Processing
+        # Logic: Immediate if Premium OR last update > 1 month ago OR never
+        # For demo, we'll assume everyone is non-premium unless specified
+        # and check last_updated.
         
-        # Update CV record with embedding
         cv = session.exec(select(CV).where(CV.filename == filename)).first()
-        if cv:
+        if not cv:
+             await websocket.send_json({"status": "error", "message": "CV record not found"})
+             return
+
+        # Check if premium (mock) or old
+        is_premium = False # TODO: Fetch from User model via cv.owner_id
+        
+        import datetime
+        last_updated = cv.last_updated
+        needs_update = True
+        if last_updated:
+            delta = datetime.datetime.utcnow() - last_updated
+            if delta.days < 30:
+                needs_update = False
+        
+        should_process_immediately = is_premium or needs_update
+        
+        # Override for demo/testing if needed
+        # should_process_immediately = True 
+        
+        if should_process_immediately:
+            # Compute embedding using shared service with ID-based caching
+            await websocket.send_json({"status": "processing", "message": "Computing embedding (Immediate)..."})
+            embedder = EmbeddingFactory.get_embedder()
+            cv_embedding = compute_cv_embedding(cv_id, data, embedder)
+            
             cv.embedding = cv_embedding
+            cv.embedding_status = "completed"
+            cv.last_updated = datetime.datetime.utcnow()
             session.add(cv)
             session.commit()
             
-        await websocket.send_json({"status": "parsing_complete", "data": data})
+            await websocket.send_json({"status": "parsing_complete", "data": data})
+        else:
+            # Batch Mode
+            cv.embedding_status = "pending_batch"
+            session.add(cv)
+            session.commit()
+            
+            await websocket.send_json({
+                "status": "queued_for_batch", 
+                "message": "CV queued for batch processing (Non-premium/Recent update). Results will be available within 24h.",
+                "data": data
+            })
+            # We still send data so user can review parsing, but matching won't happen yet
+
         
         # Wait for user confirmation (Review Step)
         try:
@@ -107,6 +147,10 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
                 )
         except Exception as e:
             print(f"Error waiting for confirmation: {e}")
+        
+        # this matching is done only when the candidate is premium 
+        # or has last cv updates a month ago or never. 
+        # else mark this cv to be embedded in a batch mode.
         
         # 3. Matching Started
         await websocket.send_json({"status": "matching_started", "message": "Finding best matches..."})

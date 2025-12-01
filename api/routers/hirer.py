@@ -69,30 +69,40 @@ async def create_job(
         # Convert Pydantic model to dict
         job_data = job.dict()
         
-        # Save job with embedding computed in background
+        # Check if premium (mock)
+        is_premium = False # TODO: Fetch from User model
+        
+        # Batch if not premium
+        use_batch = not is_premium
+        
+        # Save job with embedding computed in background or batch
         db_job = save_job_with_embedding(
             job_data=job_data,
             owner_id=owner_id,
             session=session,
             embedder=embedder,
-            compute_async=True  # Compute in background
+            compute_async=not use_batch,  # If batch, we don't need async task immediately
+            batch_mode=use_batch
         )
         
-        # Schedule background task to compute embedding
-        # TODO: this needs to be done in batch 
-        background_tasks.add_task(
-            update_job_embedding,
-            job_id=db_job.job_id,
-            session=session,
-            embedder=embedder
-        )
+        if not use_batch:
+            # Schedule background task to compute embedding immediately
+            background_tasks.add_task(
+                update_job_embedding,
+                job_id=db_job.job_id,
+                session=session,
+                embedder=embedder
+            )
+            message = "Embedding computation in progress"
+        else:
+            message = "Job queued for batch processing"
         
-        logger.info(f"Job {db_job.job_id} created, embedding computation scheduled")
+        logger.info(f"Job {db_job.job_id} created. Batch mode: {use_batch}")
         
         return {
             "status": "Job created successfully",
             "job_id": db_job.job_id,
-            "message": "Embedding computation in progress"
+            "message": message
         }
         
     except Exception as e:

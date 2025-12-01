@@ -60,3 +60,33 @@ async def get_metrics(current_user: User = Depends(get_current_user), session: S
             {"name": "F1 Score", "value": round(2 * (precision * recall) / (precision + recall), 2) if (precision + recall) > 0 else 0}
         ]
     }
+
+@router.get("/admin/batches")
+async def list_batches(session: Session = Depends(get_session)):
+    """List all batch jobs."""
+    from core.db.models import BatchRequest
+    batches = session.exec(select(BatchRequest).order_by(BatchRequest.created_at.desc())).all()
+    return batches
+
+@router.post("/admin/batches/trigger")
+async def trigger_batch_processing(type: str = "cv"):
+    """
+    Manually trigger batch submission task.
+    Args:
+        type: 'cv' or 'job'
+    """
+    from core.worker.tasks import submit_batch_embeddings_task, submit_batch_job_embeddings_task
+    
+    if type == "job":
+        task = submit_batch_job_embeddings_task.delay()
+    else:
+        task = submit_batch_embeddings_task.delay()
+        
+    return {"message": f"Batch submission triggered for {type}", "task_id": task.id}
+
+@router.post("/admin/batches/check")
+async def check_batch_status():
+    """Manually trigger batch status check."""
+    from core.worker.tasks import check_batch_status_task
+    task = check_batch_status_task.delay()
+    return {"message": "Batch status check triggered", "task_id": task.id}

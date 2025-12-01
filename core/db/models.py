@@ -10,6 +10,8 @@ class CV(SQLModel, table=True):
     filename: str
     content: Dict = Field(default={}, sa_column=Column(JSON))
     embedding: List[float] = Field(default=None, sa_column=Column(Vector(768)))
+    embedding_status: str = Field(default="completed") # pending, pending_batch, processing, completed, failed
+    last_updated: datetime = Field(default_factory=datetime.utcnow)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class Job(SQLModel, table=True):
@@ -53,6 +55,7 @@ class Job(SQLModel, table=True):
     
     # Embedding
     embedding: List[float] = Field(default=None, sa_column=Column(Vector(768)))
+    embedding_status: str = Field(default="completed") # pending, pending_batch, processing, completed, failed
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class Feedback(SQLModel, table=True):
@@ -125,6 +128,24 @@ class BatchJob(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     completed_at: Optional[datetime] = None
     error: Optional[str] = None
+
+class BatchRequest(SQLModel, table=True):
+    """Track OpenAI Batch API requests."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    batch_api_id: str = Field(unique=True, index=True) # OpenAI Batch ID (batch_abc123)
+    input_file_id: str # OpenAI File ID (file-abc123)
+    output_file_id: Optional[str] = None
+    error_file_id: Optional[str] = None
+    
+    status: str = "validating" # validating, failed, in_progress, finalizing, completed, expired, cancelling, cancelled
+    request_counts: Optional[Dict] = Field(default={}, sa_column=Column(JSON)) # {total, completed, failed}
+    batch_metadata: Optional[Dict] = Field(default={}, sa_column=Column(JSON))
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: Optional[datetime] = None
+    
+    # Type of batch: 'embedding', 'explanation', etc.
+    batch_type: str = "embedding"
 
 # Engine creation
 # database_url = "postgresql://postgres:postgres@localhost:5432/cv_matching"

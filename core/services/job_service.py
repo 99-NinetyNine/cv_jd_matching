@@ -78,7 +78,8 @@ def save_job_with_embedding(
     owner_id: Optional[int],
     session: Session,
     embedder: Embedder,
-    compute_async: bool = False
+    compute_async: bool = False,
+    batch_mode: bool = False
 ) -> Job:
     """
     Save job to database with embedding.
@@ -89,9 +90,7 @@ def save_job_with_embedding(
         session: Database session
         embedder: Embedder instance
         compute_async: If True, return job without embedding (to be computed in background)
-    
-    Returns:
-        Created Job instance
+        batch_mode: If True, mark for batch processing
     """
     # Generate job_id if not provided or None
     job_id = job_data.get('job_id')
@@ -123,11 +122,14 @@ def save_job_with_embedding(
         contact=job_data.get('contact'),
         job_portal=job_data.get('job_portal'),
         responsibilities=job_data.get('responsibilities'),
-        company_profile=job_data.get('company_profile')
+        company_profile=job_data.get('company_profile'),
+        embedding_status="pending" if compute_async else ("pending_batch" if batch_mode else "completed")
     )
     
-    # Compute embedding synchronously or mark for async
-    if not compute_async:
+    # Compute embedding synchronously or mark for async/batch
+    if batch_mode:
+        logger.info(f"Job {job_id} marked for batch processing")
+    elif not compute_async:
         logger.info(f"Computing embedding synchronously for job {job_id}")
         job.embedding = compute_job_embedding(job_id, job_data, embedder)
     else:
