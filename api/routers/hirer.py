@@ -4,7 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 from core.db.engine import get_session
-from core.db.models import Job, CV
+from core.db.models import Job, CV, UserInteraction, Application
 from core.cache.redis_cache import redis_client
 from core.matching.embeddings import EmbeddingFactory
 from core.services.job_service import save_job_with_embedding, update_job_embedding
@@ -163,3 +163,232 @@ async def delete_job(
     return {"status": "Job deleted successfully", "job_id": job_id}
 
 # TODO: if JD is updated then may need have to recompute embeddings
+
+# Hirer interaction tracking
+
+class HirerInteractionCreate(BaseModel):
+    """Track hirer actions on candidate applications."""
+    cv_id: str  # Candidate CV ID
+    job_id: str
+    action: str  # shortlisted, interviewed, hired, rejected
+    metadata: Optional[dict] = None  # e.g., {"interview_date": "2024-12-15", "rejection_reason": "..."}
+
+@router.post("/interact")
+async def log_hirer_interaction(
+    interaction: HirerInteractionCreate,
+    session: Session = Depends(get_session),
+    owner_id: Optional[int] = None  # TODO: Get from authenticated user
+):
+    """
+    Log hirer interactions with candidates for analytics and evaluation.
+    
+    Supported actions:
+    - shortlisted: Candidate moved to shortlist
+    - interviewed: Candidate was interviewed
+    - hired: Candidate was hired
+    - rejected: Candidate was rejected
+    
+    This data helps:
+    - Evaluate matching algorithm effectiveness
+    - Provide analytics to hirers
+    - Improve future recommendations
+    """
+    # Validate action type
+    valid_actions = ['shortlisted', 'interviewed', 'hired', 'rejected']
+    if interaction.action not in valid_actions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid action. Must be one of: {', '.join(valid_actions)}"
+        )
+    
+    try:
+        # Convert CV ID to user_id (use hash for now)
+        user_id_int = hash(interaction.cv_id) % (10 ** 8)
+        
+        db_interaction = UserInteraction(
+            user_id=user_id_int,
+            job_id=interaction.job_id,
+            action=interaction.action,
+            strategy='pgvector',
+            metadata=interaction.metadata
+        )
+        session.add(db_interaction)
+        session.commit()
+        
+        logger.info(f"Hirer interaction logged: cv={interaction.cv_id}, job={interaction.job_id}, action={interaction.action}")
+        
+        return {
+            "status": "success",
+            "message": f"Hirer action '{interaction.action}' logged successfully"
+        }
+    except Exception as e:
+        logger.error(f"Failed to log hirer interaction: {e}")
+        raise HTTPException(status_code=500, detail=str(e))# Application Management Endpoints - Append to hirer.py
+
+@router.get("/{job_id}/applications")
+async def get_job_applications(
+    job_id: str,
+    session: Session = Depends(get_session),
+    owner_id: Optional[int] = None,  # TODO: Get from authenticated user
+    status_filter: Optional[str] = None  # pending, accepted, rejected
+):
+    """
+    Get all applications for a specific job.
+    Only the job owner can view applications.
+    """
+    # Verify job exists
+    job = session.exec(select(Job).where(Job.job_id == job_id)).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # TODO: Add authorization when auth is implemented
+    # if owner_id and job.owner_id != owner_id:
+    #     raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get applications
+    query = select(Application).where(Application.job_id == job_id)
+    if status_filter:
+        query = query.where(Application.status == status_filter)
+    
+    applications = session.exec(query.order_by(Application.applied_at.desc())).all()
+    
+    # Fetch CV details
+    applications_with_cv = []
+    for app in applications:
+        cv = session.exec(select(CV).where(CV.filename == app.cv_id)).first()
+        app_dict = {
+            "id": app.id,
+            "cv_id": app.cv_id,
+            "job_id": app.job_id,
+            "prediction_id": app.prediction_id,
+            "status": app.status,
+            "applied_at": app.applied_at,
+            "decision_at": app.decision_at,
+            "decided_by": app.decided_by,
+            "notes": app.notes,
+            "candidate": {
+                "name": cv.content.get("basics", {}).get("name", "Unknown") if cv else "Unknown",
+                "email": cv.content.get("basics", {}).get("email", "") if cv else "",
+                "summary": cv.content.get("basics", {}).get("summary", "") if cv else "",
+                "skills": cv.content.get("skills", []) if cv else [],
+                "work": cv.content.get("work", [])[:2] if cv else []  # First 2 work experiences
+            } if cv else None
+        }
+        applications_with_cv.append(app_dict)
+    
+    return {
+        "job_id": job_id,
+        "job_title": job.title,
+        "applications": applications_with_cv,
+        "count": len(applications_with_cv)
+    }
+
+
+@router.post("/{job_id}/applications/{application_id}/accept")
+async def accept_application(
+    job_id: str,
+    application_id: int,
+    session: Session = Depends(get_session),
+    owner_id: Optional[int] = None,  # TODO: Get from authenticated user
+):
+    """Accept a job application (owner only)."""
+    # Verify job exists
+    job = session.exec(select(Job).where(Job.job_id == job_id)).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Get application
+    application = session.exec(
+        select(Application).where(
+            Application.id == application_id,
+            Application.job_id == job_id
+        )
+    ).first()
+    
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    if application.status != "pending":
+        raise HTTPException(status_code=400, detail=f"Application already {application.status}")
+    
+    # Update application
+    application.status = "accepted"
+    application.decision_at = datetime.utcnow()
+    application.decided_by = owner_id
+    session.add(application)
+    session.commit()
+    
+    # Log interaction as 'hired'
+    user_id_int = hash(application.cv_id) % (10 ** 8)
+    interaction = UserInteraction(
+        user_id=user_id_int,
+        job_id=job_id,
+        action="hired",
+        strategy="pgvector",
+        metadata={
+            "prediction_id": application.prediction_id,
+            "cv_id": application.cv_id,
+            "application_id": application.id
+        }
+    )
+    session.add(interaction)
+    session.commit()
+    
+    logger.info(f"Application {application_id} accepted for job {job_id}")
+    
+    return {"status": "success", "message": "Application accepted"}
+
+
+@router.post("/{job_id}/applications/{application_id}/reject")
+async def reject_application(
+    job_id: str,
+    application_id: int,
+    session: Session = Depends(get_session),
+    owner_id: Optional[int] = None,
+):
+    """Reject a job application (owner only)."""
+    # Verify job exists
+    job = session.exec(select(Job).where(Job.job_id == job_id)).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Get application
+    application = session.exec(
+        select(Application).where(
+            Application.id == application_id,
+            Application.job_id == job_id
+        )
+    ).first()
+    
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    if application.status != "pending":
+        raise HTTPException(status_code=400, detail=f"Application already {application.status}")
+    
+    # Update application
+    application.status = "rejected"
+    application.decision_at = datetime.utcnow()
+    application.decided_by = owner_id
+    session.add(application)
+    session.commit()
+    
+    # Log interaction as 'rejected'
+    user_id_int = hash(application.cv_id) % (10 ** 8)
+    interaction = UserInteraction(
+        user_id=user_id_int,
+        job_id=job_id,
+        action="rejected",
+        strategy="pgvector",
+        metadata={
+            "prediction_id": application.prediction_id,
+            "cv_id": application.cv_id,
+            "application_id": application.id
+        }
+    )
+    session.add(interaction)
+    session.commit()
+    
+    logger.info(f"Application {application_id} rejected for job {job_id}")
+    
+    return {"status": "success", "message": "Application rejected"}

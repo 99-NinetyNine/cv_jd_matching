@@ -96,10 +96,24 @@ class UserInteraction(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id")
     job_id: str
-    action: str # "click", "apply", "dismiss"
+    action: str # "viewed", "applied", "saved", "shortlisted", "interviewed", "hired", "rejected"
     strategy: Optional[str] = Field(default="pgvector") # "naive", "pgvector"
+    interaction_metadata: Optional[Dict] = Field(default=None, sa_column=Column(JSON))  # prediction_id, cv_id, application_id
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class Application(SQLModel, table=True):
+    """Track job applications from candidates."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    cv_id: str  # Candidate's CV ID
+    job_id: str = Field(foreign_key="job.job_id")
+    prediction_id: str  # Links to the prediction session that led to this application
+    status: str = Field(default="pending")  # pending, accepted, rejected
+    applied_at: datetime = Field(default_factory=datetime.utcnow)
+    decision_at: Optional[datetime] = None
+    decided_by: Optional[int] = Field(default=None, foreign_key="user.id")
+    notes: Optional[str] = None
 
 # Engine creation
 # database_url = "postgresql://postgres:postgres@localhost:5432/cv_matching"
 # engine = create_engine(database_url)
+

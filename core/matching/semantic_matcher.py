@@ -7,6 +7,7 @@ from langchain_core.prompts import PromptTemplate
 import logging
 from core.matching.embeddings import EmbeddingFactory
 from core.matching.strategies import NaiveMatcherStrategy, PgvectorMatcherStrategy
+from core.services.cv_service import get_text_representation
 
 logger = logging.getLogger(__name__)
 
@@ -54,79 +55,6 @@ class HybridMatcher(BaseMatcher):
         if entity_id and entity_type and hasattr(self.embedder, 'embed_with_id'):
             return self.embedder.embed_with_id(text, entity_id, entity_type)
         return self.embedder.embed_query(text)
-
-    def _get_text_representation(self, data: Dict[str, Any]) -> str:
-        """
-        Convert structured CV data (based on JSON Resume schema) to a text representation for embedding.
-        
-        Args:
-            data: Dictionary containing CV data matching the core.parsing.schema.Resume structure.
-            
-        Returns:
-            A single string concatenating key information for semantic search.
-        """
-        text = ""
-        
-        # Basics
-        if "basics" in data:
-            basics = data["basics"]
-            text += f"Name: {basics.get('name', '')}\n"
-            text += f"Label: {basics.get('label', '')}\n"
-            text += f"Summary: {basics.get('summary', '')}\n"
-            if "location" in basics and isinstance(basics["location"], dict):
-                loc = basics["location"]
-                text += f"Location: {loc.get('city', '')}, {loc.get('countryCode', '')}\n"
-        
-        # Skills
-        if "skills" in data:
-            skills_list = []
-            for s in data["skills"]:
-                if isinstance(s, dict):
-                    name = s.get("name", "")
-                    keywords = ", ".join(s.get("keywords", []))
-                    skills_list.append(f"{name} ({keywords})" if keywords else name)
-                else:
-                    skills_list.append(str(s))
-            text += f"Skills: {', '.join(skills_list)}\n"
-            
-        # Work Experience
-        if "work" in data:
-            text += "Work Experience:\n"
-            for work in data["work"]:
-                text += f"- {work.get('position', '')} at {work.get('name', '')}\n"
-                if work.get('summary'):
-                    text += f"  Summary: {work['summary']}\n"
-                if work.get('highlights'):
-                    text += f"  Highlights: {', '.join(work['highlights'])}\n"
-        
-        # Education
-        if "education" in data:
-            text += "Education:\n"
-            for edu in data["education"]:
-                text += f"- {edu.get('studyType', '')} in {edu.get('area', '')} at {edu.get('institution', '')}\n"
-        
-        # Projects
-        if "projects" in data:
-            text += "Projects:\n"
-            for proj in data["projects"]:
-                text += f"- {proj.get('name', '')}: {proj.get('description', '')}\n"
-                if proj.get('highlights'):
-                    text += f"  Highlights: {', '.join(proj['highlights'])}\n"
-
-        # Certificates
-        if "certificates" in data:
-            certs = [f"{c.get('name', '')} from {c.get('issuer', '')}" for c in data["certificates"]]
-            text += f"Certificates: {', '.join(certs)}\n"
-
-        # Job specific fields (if data is a job description)
-        if "title" in data: 
-            text += f"Job Title: {data.get('title', '')}\n"
-        if "description" in data: 
-            text += f"Job Description: {data.get('description', '')}\n"
-        if "company" in data:
-            text += f"Company: {data.get('company', '')}\n"
-            
-        return text
 
     def _calculate_skills_score(self, cv_skills: List[str], job_skills: List[str]) -> float:
         if not cv_skills or not job_skills:
@@ -182,7 +110,7 @@ class HybridMatcher(BaseMatcher):
 
     def save_job_embedding(self, job_id: str, job_data: Dict[str, Any]):
         """Save job embedding using strategy with ID-based caching."""
-        job_text = self._get_text_representation(job_data)
+        job_text = get_text_representation(job_data)
         embedding = self._get_embedding(job_text, entity_id=job_id, entity_type='job')
         self.strategy.save_job(job_id, job_data, embedding)
 
@@ -199,7 +127,7 @@ class HybridMatcher(BaseMatcher):
         print(f"[MATCH] CV data keys: {list(cv_data.keys())}")
         print(f"[MATCH] Job candidates provided: {len(job_candidates) if job_candidates else 0}")
         
-        cv_text = self._get_text_representation(cv_data)
+        cv_text = get_text_representation(cv_data)
         print(f"[MATCH] CV text representation length: {len(cv_text)} chars")
         print(f"[MATCH] CV text preview: {cv_text[:200]}...")
         
@@ -250,7 +178,7 @@ class HybridMatcher(BaseMatcher):
             job_title = job.get("title", "Unknown")
             print(f"[MATCH] Processing result {idx+1}/{len(semantic_results)}: Job {job_id} - {job_title}")
             
-            job_text = self._get_text_representation(job)
+            job_text = get_text_representation(job)
             print(f"[MATCH]   Job text length: {len(job_text)} chars")
             
             # Skills Score
@@ -318,15 +246,25 @@ class HybridMatcher(BaseMatcher):
         
         # 6. Explanations (Top 3)
         print(f"[MATCH] Generating explanations for top {min(3, len(top_k))} results")
-        for idx, res in enumerate(top_k[:3]):
-            print(f"[MATCH] Generating explanation for result {idx+1}: {res['job_title']}")
-            res["explanation"] = self._explain_match(
-                cv_text, 
-                res["job_text"], 
-                res["match_score"], 
-                res["matching_factors"]
-            )
-            print(f"[MATCH]   Explanation generated: {res['explanation'][:100]}...")
         
-        print(f"[MATCH] Match process complete, returning {len(top_k)} results")
-        return top_k
+        # Filter out low scores (e.g. < 0)
+        final_results = []
+        for idx, res in enumerate(top_k):
+            if res["match_score"] < 0:
+                print(f"[MATCH] Skipping result {idx+1} due to low score: {res['match_score']}")
+                continue
+                
+            if len(final_results) < 3:
+                print(f"[MATCH] Generating explanation for result {idx+1}: {res['job_title']}")
+                res["explanation"] = self._explain_match(
+                    cv_text, 
+                    res["job_text"], 
+                    res["match_score"], 
+                    res["matching_factors"]
+                )
+                print(f"[MATCH]   Explanation generated: {res['explanation'][:100]}...")
+            
+            final_results.append(res)
+        
+        print(f"[MATCH] Match process complete, returning {len(final_results)} results")
+        return final_results

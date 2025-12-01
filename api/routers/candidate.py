@@ -13,6 +13,9 @@ from core.monitoring.metrics import log_metric
 from core.matching.embeddings import EmbeddingFactory
 from core.services.cv_service import get_or_parse_cv, compute_cv_embedding, update_cv_with_corrections
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["candidate"])
 
@@ -133,34 +136,126 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
             # Cache results
             redis_client.set(cache_key, json.dumps(matches), ttl=3600)
         
-        # Log metric
-        log_metric("recommendation_count", len(matches), {"cv_id": cv_id})
+        # Generate unique prediction_id for this matching session
+        prediction_id = str(uuid.uuid4())
+        logger.info(f"Generated prediction_id {prediction_id} for CV {cv_id} with {len(matches)} matches")
         
-        await websocket.send_json({"status": "complete", "matches": matches})
+        # Log metric
+        log_metric("recommendation_count", len(matches), {"cv_id": cv_id, "prediction_id": prediction_id})
+        
+        await websocket.send_json({
+            "status": "complete", 
+            "matches": matches,
+            "prediction_id": prediction_id,  # Send to frontend
+            "cv_id": cv_id
+        })
         
     except Exception as e:
         await websocket.send_json({"status": "error", "message": str(e)})
 
-# to get feedback of recommendation, could be used to evaluate the quality of prediction
+
+# Interaction tracking for evaluation and analytics
 
 class InteractionCreate(BaseModel):
-    user_id: int
+    user_id: str  # CV ID or user ID
     job_id: str
-    action: str
+    action: str  # viewed, applied, saved, shortlisted, interviewed, hired, rejected
     strategy: str = "pgvector"
+    prediction_id: Optional[str] = None  # Unique ID for this prediction session
+    cv_id: Optional[str] = None  # Explicit CV ID for tracking
+    interaction_metadata: Optional[dict] = None  # Additional context (e.g., rejection reason, interview date)
 
 @router.post("/interact")
 async def log_interaction(interaction: InteractionCreate, session: Session = Depends(get_session)):
+    """
+    Log user interactions with job postings for analytics and model evaluation.
+    
+    Supported actions:
+    - Candidate actions: viewed, applied, saved
+    - Hirer actions: shortlisted, interviewed, hired, rejected
+    
+    This data can be used to:
+    - Evaluate recommendation quality
+    - Train better matching models
+    - Provide analytics to hirers
+    - Improve user experience
+    """
+    from core.db.models import Application
+    
+    # Validate action type
+    valid_actions = ['viewed', 'applied', 'saved', 'shortlisted', 'interviewed', 'hired', 'rejected']
+    if interaction.action not in valid_actions:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalidaction. Must be one of: {', '.join(valid_actions)}"
+        )
+    
     try:
+        # Convert user_id to int if it's numeric, otherwise use hash
+        try:
+            user_id_int = int(interaction.user_id)
+        except ValueError:
+            # Use hash of CV ID as user_id for now
+            user_id_int = hash(interaction.user_id) % (10 ** 8)
+        
+        # Enhance metadata with prediction_id and cv_id if provided
+        enhanced_metadata = interaction.interaction_metadata or {}
+        if interaction.prediction_id:
+            enhanced_metadata['prediction_id'] = interaction.prediction_id
+        if interaction.cv_id:
+            enhanced_metadata['cv_id'] = interaction.cv_id
+        
+        # If action is 'applied', create Application record
+        application_id = None
+        if interaction.action == 'applied' and interaction.cv_id and interaction.prediction_id:
+            # Check if application already exists
+            existing_app = session.exec(
+                select(Application).where(
+                    Application.cv_id == interaction.cv_id,
+                    Application.job_id == interaction.job_id
+                )
+            ).first()
+            
+            if not existing_app:
+                application = Application(
+                    cv_id=interaction.cv_id,
+                    job_id=interaction.job_id,
+                    prediction_id=interaction.prediction_id,
+                    status="pending"
+                )
+                session.add(application)
+                session.flush()  # Get the ID
+                application_id = application.id
+                enhanced_metadata['application_id'] = application_id
+                logger.info(f"Created Application {application_id} for CV {interaction.cv_id}, Job {interaction.job_id}")
+            else:
+                application_id = existing_app.id
+                enhanced_metadata['application_id'] = application_id
+        
         db_interaction = UserInteraction(
-            user_id=interaction.user_id, 
+            user_id=user_id_int, 
             job_id=interaction.job_id, 
             action=interaction.action,
-            strategy=interaction.strategy
+            strategy=interaction.strategy,
+            interaction_metadata=enhanced_metadata if enhanced_metadata else None
         )
         session.add(db_interaction)
         session.commit()
-        return {"status": "success"}
+        
+        logger.info(
+            f"Logged interaction: user={interaction.user_id}, job={interaction.job_id}, "
+            f"action={interaction.action}, prediction_id={interaction.prediction_id}, "
+            f"application_id={application_id}"
+        )
+        
+        return {
+            "status": "success",
+            "message": f"Interaction '{interaction.action}' logged successfully",
+            "application_id": application_id
+        }
     except Exception as e:
+        logger.error(f"Failed to log interaction: {e}")
+        session.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
 

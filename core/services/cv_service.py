@@ -14,37 +14,79 @@ from core.matching.embeddings import Embedder
 logger = logging.getLogger(__name__)
 
 
-def _get_text_representation(cv_data: Dict[str, Any]) -> str:
-    """Convert CV data to text representation for embedding."""
+def get_text_representation(data: Dict[str, Any]) -> str:
+    """
+    Convert structured CV data (based on JSON Resume schema) to a text representation for embedding.
+    This is the canonical implementation used across the codebase.
+    
+    Args:
+        data: Dictionary containing CV data matching the core.parsing.schema.Resume structure.
+        
+    Returns:
+        A single string concatenating key information for semantic search.
+    """
     text = ""
     
-    if "basics" in cv_data:
-        basics = cv_data["basics"]
-        text += f"{basics.get('name', '')} {basics.get('label', '')} {basics.get('summary', '')} "
+    # Basics
+    if "basics" in data:
+        basics = data["basics"]
+        text += f"Name: {basics.get('name', '')}\n"
+        text += f"Label: {basics.get('label', '')}\n"
+        text += f"Summary: {basics.get('summary', '')}\n"
         if "location" in basics and isinstance(basics["location"], dict):
             loc = basics["location"]
-            text += f"{loc.get('city', '')}, {loc.get('countryCode', '')} "
+            text += f"Location: {loc.get('city', '')}, {loc.get('countryCode', '')}\n"
     
-    if "skills" in cv_data:
+    # Skills
+    if "skills" in data:
         skills_list = []
-        for s in cv_data["skills"]:
+        for s in data["skills"]:
             if isinstance(s, dict):
                 name = s.get("name", "")
                 keywords = ", ".join(s.get("keywords", []))
                 skills_list.append(f"{name} ({keywords})" if keywords else name)
             else:
                 skills_list.append(str(s))
-        text += " ".join(skills_list) + " "
+        text += f"Skills: {', '.join(skills_list)}\n"
+        
+    # Work Experience
+    if "work" in data:
+        text += "Work Experience:\n"
+        for work in data["work"]:
+            text += f"- {work.get('position', '')} at {work.get('name', '')}\n"
+            if work.get('summary'):
+                text += f"  Summary: {work['summary']}\n"
+            if work.get('highlights'):
+                text += f"  Highlights: {', '.join(work['highlights'])}\n"
     
-    if "work" in cv_data:
-        for work in cv_data["work"]:
-            text += f"{work.get('position', '')} {work.get('name', '')} {work.get('summary', '')} "
+    # Education
+    if "education" in data:
+        text += "Education:\n"
+        for edu in data["education"]:
+            text += f"- {edu.get('studyType', '')} in {edu.get('area', '')} at {edu.get('institution', '')}\n"
     
-    if "education" in cv_data:
-        for edu in cv_data["education"]:
-            text += f"{edu.get('studyType', '')} {edu.get('area', '')} {edu.get('institution', '')} "
-    
-    return text.strip()
+    # Projects
+    if "projects" in data:
+        text += "Projects:\n"
+        for proj in data["projects"]:
+            text += f"- {proj.get('name', '')}: {proj.get('description', '')}\n"
+            if proj.get('highlights'):
+                text += f"  Highlights: {', '.join(proj['highlights'])}\n"
+
+    # Certificates
+    if "certificates" in data:
+        certs = [f"{c.get('name', '')} from {c.get('issuer', '')}" for c in data["certificates"]]
+        text += f"Certificates: {', '.join(certs)}\n"
+
+    # Job specific fields (if data is a job description)
+    if "title" in data: 
+        text += f"Job Title: {data.get('title', '')}\n"
+    if "description" in data: 
+        text += f"Job Description: {data.get('description', '')}\n"
+    if "company" in data:
+        text += f"Company: {data.get('company', '')}\n"
+        
+    return text
 
 
 def get_or_parse_cv(cv_id: str, file_path: Optional[Path], session: Session) -> Dict[str, Any]:
@@ -99,7 +141,7 @@ def compute_cv_embedding(cv_id: str, cv_data: Dict[str, Any], embedder: Embedder
     Returns:
         Embedding vector
     """
-    text_rep = _get_text_representation(cv_data)
+    text_rep = get_text_representation(cv_data)
     
     # Use ID-based caching if available
     if hasattr(embedder, 'embed_with_id'):
