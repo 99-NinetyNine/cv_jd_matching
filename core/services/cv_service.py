@@ -14,7 +14,7 @@ from core.matching.embeddings import Embedder
 logger = logging.getLogger(__name__)
 
 
-def get_text_representation(data: Dict[str, Any]) -> str:
+def get_cv_text_representation(data: Dict[str, Any]) -> str:
     """
     Convert structured CV data (based on JSON Resume schema) to a text representation for embedding.
     This is the canonical implementation used across the codebase.
@@ -141,7 +141,7 @@ def compute_cv_embedding(cv_id: str, cv_data: Dict[str, Any], embedder: Embedder
     Returns:
         Embedding vector
     """
-    text_rep = get_text_representation(cv_data)
+    text_rep = get_cv_text_representation(cv_data)
     
     # Use ID-based caching if available
     if hasattr(embedder, 'embed_with_id'):

@@ -11,6 +11,8 @@ class CV(SQLModel, table=True):
     content: Dict = Field(default={}, sa_column=Column(JSON))
     embedding: List[float] = Field(default=None, sa_column=Column(Vector(768)))
     embedding_status: str = Field(default="completed") # pending, pending_batch, processing, completed, failed
+    is_latest: bool = Field(default=True)
+    last_analyzed: Optional[datetime] = Field(default=None)
     last_updated: datetime = Field(default_factory=datetime.utcnow)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

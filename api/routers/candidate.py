@@ -48,8 +48,27 @@ async def upload_cv(file: UploadFile = File(...), session: Session = Depends(get
     with open(file_path, "wb") as buffer:
         buffer.write(content)
         
-    # Create initial CV record
-    cv = CV(filename=filename, content={}, embedding_status="pending")
+    # 2. Parse CV
+    # For now, we'll just use a mock parser or the text extraction
+    # In a real app, we'd use a proper parser service
+    
+    # Update existing CVs for this user (if we had user_id) to is_latest=False
+    # Since we don't have user_id in the request yet (it's optional in model), 
+    # we might need to rely on some other logic or just assume for now we are adding a new one.
+    # However, if we want to support "latest per user", we need to know the user.
+    # Let's assume for this task that we might have a user_id from dependency if auth was enabled.
+    # For now, we will just set the new one to True (default).
+    
+    # If we had a user_id:
+    # session.exec(update(CV).where(CV.owner_id == user_id).values(is_latest=False))
+    
+    # Create CV record
+    cv = CV(
+        filename=filename,
+        content={},
+        embedding_status="pending",
+        is_latest=True
+    )
     session.add(cv)
     session.commit()
     session.refresh(cv)

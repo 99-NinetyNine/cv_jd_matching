@@ -20,6 +20,7 @@ def perform_batch_matches():
     from core.db.models import CV, Prediction, BatchRequest
     from core.services.batch_service import BatchService
     from core.services.job_service import get_job_text_representation
+    from core.services.cv_service import get_cv_text_representation
     import uuid
     
     logger = celery_app.log.get_default_logger()
@@ -27,27 +28,24 @@ def perform_batch_matches():
     
     try:
         with Session(engine) as session:
-            # 1. Find target CVs (simplified logic for demo)
-            # Get CVs that have embedding_status='completed'
-            # And either no prediction OR last prediction > 7 days ago
-            # For now, just get all completed CVs and check their last prediction
-            cvs = session.exec(select(CV).where(CV.embedding_status == "completed")).all()
+            # 1. Find target CVs
+            # Filter by:
+            # - embedding_status = 'completed'
+            # - is_latest = True (only process the latest CV for each user)
+            # - last_analyzed is NULL OR older than 6 hours
             
-            target_cv_ids = []
-            for cv in cvs:
-                last_pred = session.exec(
-                    select(Prediction)
-                    .where(Prediction.cv_id == str(cv.id))
-                    .order_by(Prediction.created_at.desc())
-                ).first()
-                
-                if not last_pred:
-                    target_cv_ids.append(cv.id)
-                else:
-                    # Check age
-                    delta = datetime.utcnow() - last_pred.created_at
-                    if delta.days > 7:
-                        target_cv_ids.append(cv.id)
+            from datetime import timedelta
+            cutoff_time = datetime.utcnow() - timedelta(hours=6)
+            
+            cvs = session.exec(
+                select(CV).where(
+                    CV.embedding_status == "completed",
+                    CV.is_latest == True,
+                    (CV.last_analyzed == None) | (CV.last_analyzed < cutoff_time)
+                )
+            ).all()
+            
+            target_cv_ids = [cv.id for cv in cvs]
                         
             if not target_cv_ids:
                 return "No CVs need matching"
@@ -112,7 +110,7 @@ def perform_batch_matches():
                     final_matches.append(m)
                     
                     # Prepare explanation request
-                    cv_text = str(cv.content.get("basics", {})) + " " + str(cv.content.get("skills", []))
+                    cv_text =  get_cv_text_representation(cv.content)
                     job_text = get_job_text_representation(m["data"])
                     
                     req_id = f"pred-{prediction_id}-job-{m['job_id']}"
@@ -137,6 +135,10 @@ def perform_batch_matches():
                     matches=final_matches
                 )
                 session.add(prediction)
+                
+                # Update last_analyzed timestamp
+                cv.last_analyzed = datetime.utcnow()
+                session.add(cv)
             
             session.commit()
             
@@ -171,7 +173,7 @@ def perform_batch_matches():
 
 # for cvs
 @celery_app.task
-def submit_batch_embeddings_task():
+def submit_cv_batch_embeddings_task():
     """
     Collects CVs with embedding_status='pending_batch' and submits a batch job to OpenAI.
     """
@@ -332,48 +334,89 @@ def check_batch_status_task():
                 batch_req.output_file_id = remote_batch.output_file_id
                 batch_req.error_file_id = remote_batch.error_file_id
                 
-                if remote_batch.status == "completed" and batch_req.output_file_id:
-                    # Process Results
-                    logger.info(f"Processing results for batch {batch_req.batch_api_id}")
-                    results = batch_service.retrieve_results(batch_req.output_file_id)
-                    
-                    for res in results:
-                        custom_id = res.get("custom_id")
-                        if not custom_id:
-                            continue
-                            
-                        # Parse ID
-                        if custom_id.startswith("cv-"):
-                            cv_id = int(custom_id.replace("cv-", ""))
-                            cv = session.get(CV, cv_id)
-                            if cv:
-                                try:
-                                    embedding = res["response"]["body"]["data"][0]["embedding"]
-                                    cv.embedding = embedding
-                                    cv.embedding_status = "completed"
-                                    cv.last_updated = datetime.utcnow()
-                                    session.add(cv)
-                                except Exception as e:
-                                    logger.error(f"Failed to update CV {cv_id}: {e}")
-                                    cv.embedding_status = "failed"
-                                    session.add(cv)
+                if remote_batch.status == "completed":
+                    if batch_req.batch_metadata.get("type") == "embedding":
+                        # Handle Embedding Results
+                        results = batch_service.retrieve_results(remote_batch.output_file_id)
                         
-                        elif custom_id.startswith("job-"):
-                            job_id = int(custom_id.replace("job-", ""))
-                            job = session.get(Job, job_id)
-                            if job:
-                                try:
-                                    embedding = res["response"]["body"]["data"][0]["embedding"]
-                                    job.embedding = embedding
-                                    job.embedding_status = "completed"
-                                    session.add(job)
-                                except Exception as e:
-                                    logger.error(f"Failed to update Job {job_id}: {e}")
-                                    job.embedding_status = "failed"
-                                    session.add(job)
-                                    
+                        for res in results:
+                            custom_id = res.get("custom_id")
+                            if not custom_id: continue
+                            
+                            if custom_id.startswith("cv-"):
+                                cv_id = int(custom_id.replace("cv-", ""))
+                                cv = session.get(CV, cv_id)
+                                if cv:
+                                    try:
+                                        embedding = res["response"]["body"]["data"][0]["embedding"]
+                                        cv.embedding = embedding
+                                        cv.embedding_status = "completed"
+                                        session.add(cv)
+                                    except Exception as e:
+                                        logger.error(f"Failed to update CV {cv_id}: {e}")
+                                        cv.embedding_status = "failed"
+                                        session.add(cv)
+                            
+                            elif custom_id.startswith("job-"):
+                                job_id = int(custom_id.replace("job-", ""))
+                                job = session.get(Job, job_id)
+                                if job:
+                                    try:
+                                        embedding = res["response"]["body"]["data"][0]["embedding"]
+                                        job.embedding = embedding
+                                        job.embedding_status = "completed"
+                                        session.add(job)
+                                    except Exception as e:
+                                        logger.error(f"Failed to update Job {job_id}: {e}")
+                                        job.embedding_status = "failed"
+                                        session.add(job)
+
+                    elif batch_req.batch_metadata.get("type") == "explanation":
+                         # Handle Explanation Results
+                         logger.info(f"Processing explanation results for batch {batch_req.batch_api_id}")
+                         results = batch_service.retrieve_results(remote_batch.output_file_id)
+                         
+                         # Group by prediction_id
+                         updates = {} # prediction_id -> {job_id: explanation}
+                         
+                         for res in results:
+                             custom_id = res.get("custom_id")
+                             if not custom_id: continue
+                             
+                             try:
+                                 # custom_id format: pred-{prediction_id}-job-{job_id}
+                                 parts = custom_id.split("-job-")
+                                 if len(parts) != 2: continue
+                                 
+                                 pred_part = parts[0].replace("pred-", "")
+                                 job_id = parts[1]
+                                 
+                                 explanation = res["response"]["body"]["choices"][0]["message"]["content"]
+                                 
+                                 if pred_part not in updates:
+                                     updates[pred_part] = {}
+                                 updates[pred_part][job_id] = explanation
+                             except Exception as e:
+                                 logger.error(f"Failed to parse explanation result {custom_id}: {e}")
+                                 
+                         # Update Predictions
+                         for pred_id, job_explanations in updates.items():
+                             prediction = session.exec(select(Prediction).where(Prediction.prediction_id == pred_id)).first()
+                             if prediction:
+                                 # Update matches
+                                 new_matches = []
+                                 for m in prediction.matches:
+                                     if m["job_id"] in job_explanations:
+                                         m["explanation"] = job_explanations[m["job_id"]]
+                                     new_matches.append(m)
+                                 
+                                 # Force update
+                                 prediction.matches = list(new_matches) 
+                                 session.add(prediction)
+
                     batch_req.completed_at = datetime.utcnow()
                     batch_req.status = remote_batch.status
+                    batch_req.output_file_id = remote_batch.output_file_id
                     
                 elif remote_batch.status in ["failed", "expired", "cancelled"]:
                     batch_req.completed_at = datetime.utcnow()
@@ -382,54 +425,7 @@ def check_batch_status_task():
                     # it depends...
                 session.add(batch_req)
                 session.commit()
-                # I think we may need to perform upsort bulk here
                 
-                if remote_batch.status == "completed" and batch_req.output_file_id and batch_req.batch_metadata.get("type") == "explanation":
-                     # Handle Explanation Results
-                     logger.info(f"Processing explanation results for batch {batch_req.batch_api_id}")
-                     results = batch_service.retrieve_results(batch_req.output_file_id)
-                     
-                     # Group by prediction_id
-                     # custom_id format: pred-{prediction_id}-job-{job_id}
-                     
-                     updates = {} # prediction_id -> {job_id: explanation}
-                     
-                     for res in results:
-                         custom_id = res.get("custom_id")
-                         if not custom_id: continue
-                         
-                         try:
-                             parts = custom_id.split("-job-")
-                             pred_part = parts[0].replace("pred-", "")
-                             job_id = parts[1]
-                             
-                             explanation = res["response"]["body"]["choices"][0]["message"]["content"]
-                             
-                             if pred_part not in updates:
-                                 updates[pred_part] = {}
-                             updates[pred_part][job_id] = explanation
-                         except Exception as e:
-                             logger.error(f"Failed to parse explanation result {custom_id}: {e}")
-                             
-                     # Update Predictions
-                     for pred_id, job_explanations in updates.items():
-                         prediction = session.exec(select(Prediction).where(Prediction.prediction_id == pred_id)).first()
-                         if prediction:
-                             # Update matches
-                             new_matches = []
-                             for m in prediction.matches:
-                                 if m["job_id"] in job_explanations:
-                                     m["explanation"] = job_explanations[m["job_id"]]
-                                 new_matches.append(m)
-                             
-                             # Force update (SQLModel/SQLAlchemy might not detect JSON mutation)
-                             prediction.matches = list(new_matches) 
-                             session.add(prediction)
-                             
-                     batch_req.completed_at = datetime.utcnow()
-                     batch_req.status = remote_batch.status
-                     session.add(batch_req)
-                     session.commit()
     except Exception as e:
         logger.error(f"Batch status check failed: {e}")
         return str(e)
