@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from core.pipeline import ResumeExtractionPipeline
-from api.routers import candidate, hirer, batch
+from api.routers import auth, candidate, hirer, batch
 import shutil
 import os
 import uuid
@@ -18,6 +18,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router)
 app.include_router(candidate.router)
 app.include_router(hirer.router)
 app.include_router(batch.router)

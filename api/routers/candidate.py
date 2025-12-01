@@ -56,16 +56,15 @@ async def upload_cv(file: UploadFile = File(...), session: Session = Depends(get
     
     return {"cv_id": cv_id, "filename": filename, "path": str(file_path)}
 
-@router.websocket("/ws/candidate/{cv_id}")
+
 @router.websocket("/ws/candidate/{cv_id}")
 async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session = Depends(get_session)):
     """Interactive CV processing and matching via WebSocket."""
-    from core.graph.parsing_graph import create_parsing_graph
     
     await websocket.accept()
     try:
         # 1. Parsing Started
-        await websocket.send_json({"status": "parsing_started", "message": "Parsing CV with RAG..."})
+        await websocket.send_json({"status": "parsing_started", "message": "Parsing CV..."})
         
         # Find file
         filename = f"{cv_id}.pdf"
@@ -76,40 +75,21 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
             await websocket.close()
             return
 
-        # 2. Parse using RAG Graph
-        # Check if already parsed
+        # 2. Parse using shared service (checks DB first)
+        data = get_or_parse_cv(cv_id, file_path, session)
+        
+        # 3. Compute embedding using shared service with ID-based caching
+        embedder = EmbeddingFactory.get_embedder()
+        cv_embedding = compute_cv_embedding(cv_id, data, embedder)
+        
+        # Update CV record with embedding
         cv = session.exec(select(CV).where(CV.filename == filename)).first()
-        if cv and cv.content:
-            data = cv.content
-            await websocket.send_json({"status": "parsing_complete", "data": data})
-        else:
-            # Run Graph
-            graph = create_parsing_graph()
-            initial_state = {
-                "file_path": str(file_path),
-                "text_content": "",
-                "chunks": [],
-                "chunk_embeddings": [],
-                "parsed_data": {},
-                "status": "starting",
-                "error": ""
-            }
+        if cv:
+            cv.embedding = cv_embedding
+            session.add(cv)
+            session.commit()
             
-            result = graph.invoke(initial_state)
-            
-            if result.get("error"):
-                await websocket.send_json({"status": "error", "message": result["error"]})
-                return
-                
-            data = result.get("parsed_data", {})
-            
-            # Update CV in DB
-            if cv:
-                cv.content = data
-                session.add(cv)
-                session.commit()
-            
-            await websocket.send_json({"status": "parsing_complete", "data": data})
+        await websocket.send_json({"status": "parsing_complete", "data": data})
         
         # Wait for user confirmation (Review Step)
         try:
@@ -117,66 +97,61 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
             if msg.get("action") == "confirm":
                 corrected_data = msg.get("data")
                 
-                # Update with corrections (simplified for now)
-                if cv:
-                    cv.content = corrected_data
-                    session.add(cv)
-                    session.commit()
-                data = corrected_data
-                
+                # Use shared service to handle corrections
+                data = update_cv_with_corrections(
+                    cv_id, 
+                    data, 
+                    corrected_data, 
+                    session,
+                    embedder=embedder
+                )
         except Exception as e:
             print(f"Error waiting for confirmation: {e}")
         
-        # 3. Smart Batching Logic
-        # Mock Premium Check (e.g., check header or user_id)
-        # For demo: assume standard unless specified
-        is_premium = False 
+        # 3. Matching Started
+        await websocket.send_json({"status": "matching_started", "message": "Finding best matches..."})
         
-        if is_premium:
-            await websocket.send_json({"status": "matching_started", "message": "Premium User: Finding best matches immediately..."})
+        # Call match_candidate logic directly (no Celery)
+        strategy = "pgvector"
+        cache_key = f"match_results:{strategy}:{cv_id}"
+        cached_results = redis_client.get(cache_key)
+        
+        if cached_results:
+            matches = json.loads(cached_results)
+        else:
+            # Get CV from database
+            cv = session.exec(select(CV).where(CV.filename == filename)).first()
+            if not cv or not cv.content:
+                await websocket.send_json({"status": "error", "message": "CV not found"})
+                return
             
-            # Compute embedding immediately
-            embedder = EmbeddingFactory.get_embedder()
-            cv_embedding = compute_cv_embedding(cv_id, data, embedder)
+            cv_data = cv.content
+            cv_embedding = cv.embedding if (cv.embedding is not None and len(cv.embedding) > 0) else compute_cv_embedding(cv_id, cv_data, embedder)
             
-            if cv:
-                cv.embedding = cv_embedding
-                session.add(cv)
-                session.commit()
-                
-            # Match
-            strategy = "pgvector"
+            # Match using HybridMatcher
             matcher = HybridMatcher(strategy=strategy)
-            cv_data_with_emb = data.copy()
+            cv_data_with_emb = cv_data.copy()
             cv_data_with_emb["embedding"] = cv_embedding
             matches = matcher.match(cv_data_with_emb, cv_id=cv_id)
             
-            # Cache
-            cache_key = f"match_results:{strategy}:{cv_id}"
+            # Cache results
             redis_client.set(cache_key, json.dumps(matches), ttl=3600)
-            
-            prediction_id = str(uuid.uuid4())
-            log_metric("recommendation_count", len(matches), {"cv_id": cv_id, "prediction_id": prediction_id})
-            
-            await websocket.send_json({
-                "status": "complete", 
-                "matches": matches,
-                "prediction_id": prediction_id,
-                "cv_id": cv_id
-            })
-            
-        else:
-            # Standard User: Defer embedding
-            await websocket.send_json({"status": "queued", "message": "Standard User: CV queued for background matching. You will be notified."})
-            
-            # We leave cv.embedding as None (or whatever it was)
-            # The background worker will pick this up
-            
-            # If we had an OLD embedding, we could match against that here
-            # But for a new upload, we just queue it.
-            
+        
+        # Generate unique prediction_id for this matching session
+        prediction_id = str(uuid.uuid4())
+        logger.info(f"Generated prediction_id {prediction_id} for CV {cv_id} with {len(matches)} matches")
+        
+        # Log metric
+        log_metric("recommendation_count", len(matches), {"cv_id": cv_id, "prediction_id": prediction_id})
+        
+        await websocket.send_json({
+            "status": "complete", 
+            "matches": matches,
+            "prediction_id": prediction_id,  # Send to frontend
+            "cv_id": cv_id
+        })
+        
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
         await websocket.send_json({"status": "error", "message": str(e)})
 
 
