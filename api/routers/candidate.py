@@ -221,26 +221,24 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
         await websocket.send_json({"status": "error", "message": str(e)})
 
 
-@router.get("/recommendations/{cv_id}")
-async def get_recommendations(cv_id: str, session: Session = Depends(get_session)):
+@router.get("/recommendations")
+async def get_recommendations(session: Session = Depends(get_session)):
     """
-    Get job recommendations for an existing CV.
+    Get job recommendations for the user's latest CV.
     Uses cached results if available, otherwise computes new matches.
     """
-    # 1. Check if CV exists
-    filename = f"{cv_id}.pdf"
-    cv = session.exec(select(CV).where(CV.filename == filename)).first()
+    # 1. Find the latest CV (using is_latest flag)
+    cv = session.exec(
+        select(CV)
+        .where(CV.is_latest == True)
+        .where(CV.embedding_status == "completed")
+        .order_by(CV.created_at.desc())
+    ).first()
     
     if not cv:
-        # Try finding by ID directly if filename lookup fails
-        try:
-            cv_int_id = int(cv_id)
-            cv = session.exec(select(CV).where(CV.id == cv_int_id)).first()
-        except ValueError:
-            pass
-            
-    if not cv:
-        raise HTTPException(status_code=404, detail="CV not found")
+        raise HTTPException(status_code=404, detail="No CV found. Please upload a CV first.")
+    
+    cv_id = str(cv.id)
         
     # 2. Check Cache
     strategy = "pgvector"
@@ -250,82 +248,49 @@ async def get_recommendations(cv_id: str, session: Session = Depends(get_session
     if cached_results:
         matches = json.loads(cached_results)
         logger.info(f"Returning cached matches for CV {cv_id}")
-    else:
-        # 3. Compute Matches
         
-        # Check DB for recent predictions first
+        # Get prediction_id from DB
         latest_prediction = session.exec(
             select(Prediction)
             .where(Prediction.cv_id == cv_id)
             .order_by(Prediction.created_at.desc())
         ).first()
         
-        # Use stored prediction if it's recent (e.g. < 24 hours) or if we want to avoid re-computing
-        # For now, let's use it if available to save compute
-        if latest_prediction:
-             matches = latest_prediction.matches
-             prediction_id = latest_prediction.prediction_id
-             logger.info(f"Returning stored DB matches for CV {cv_id}")
-             
-             # Cache for next time
-             redis_client.set(cache_key, json.dumps(matches), ttl=3600)
-             
-             return {
-                "cv_id": cv_id,
-                "prediction_id": prediction_id,
-                "matches": matches,
-                "count": len(matches)
-            }
-
-        if not cv.content:
-             raise HTTPException(status_code=400, detail="CV content not parsed yet")
-             
-        # Ensure embedding exists
-        embedder = EmbeddingFactory.get_embedder()
-        cv_embedding = cv.embedding
-        if not cv_embedding or len(cv_embedding) == 0:
-            cv_embedding = compute_cv_embedding(cv_id, cv.content, embedder)
-            # Update DB
-            cv.embedding = cv_embedding
-            session.add(cv)
-            session.commit()
-            
-        # Run Matcher
-        matcher = HybridMatcher(strategy=strategy)
-        cv_data_with_emb = cv.content.copy()
-        cv_data_with_emb["embedding"] = cv_embedding
-        matches = matcher.match(cv_data_with_emb, cv_id=cv_id)
-        
-        # Generate prediction_id
-        prediction_id = str(uuid.uuid4())
-        
-        # Save to DB
-        prediction = Prediction(
-            prediction_id=prediction_id,
-            cv_id=cv_id,
-            matches=matches
-        )
-        session.add(prediction)
-        session.commit()
-        
-        # Cache results
-        redis_client.set(cache_key, json.dumps(matches), ttl=3600)
-        logger.info(f"Computed and cached new matches for CV {cv_id}")
-
-    # 4. Generate prediction_id for tracking (if not already set)
-    if 'prediction_id' not in locals():
-        prediction_id = str(uuid.uuid4())
+        return {
+            "cv_id": cv_id,
+            "prediction_id": latest_prediction.prediction_id if latest_prediction else None,
+            "matches": matches,
+            "count": len(matches)
+        }
     
-    # Log metric
-    log_metric("recommendation_count", len(matches), {"cv_id": cv_id, "prediction_id": prediction_id})
+    # 3. Check DB for recent predictions
+    latest_prediction = session.exec(
+        select(Prediction)
+        .where(Prediction.cv_id == cv_id)
+        .order_by(Prediction.created_at.desc())
+    ).first()
     
-    return {
-        "cv_id": cv_id,
-        "prediction_id": prediction_id,
-        "matches": matches,
-        "count": len(matches)
-    }
+    # Use stored prediction if available
+    if latest_prediction:
+         matches = latest_prediction.matches
+         prediction_id = latest_prediction.prediction_id
+         logger.info(f"Returning stored DB matches for CV {cv_id}")
+         
+         # Cache for next time
+         redis_client.set(cache_key, json.dumps(matches), ttl=3600)
+         
+         return {
+            "cv_id": cv_id,
+            "prediction_id": prediction_id,
+            "matches": matches,
+            "count": len(matches)
+        }
 
+    # 4. No cached or stored results - compute new matches
+    if not cv.content:
+        raise HTTPException(status_code=400, detail="CV content not parsed yet")
+        
+    
 
 # Interaction tracking for evaluation and analytics
 
