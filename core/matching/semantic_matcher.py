@@ -1,246 +1,160 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TypedDict
+from langgraph.graph import StateGraph, END
 from sentence_transformers import CrossEncoder
 import numpy as np
-from core.matching.base import BaseMatcher
+import logging
+import psycopg2
+import os
+from core.matching.embeddings import EmbeddingFactory
+from core.services.job_service import get_job_text_representation
 from core.llm.factory import get_llm
 from langchain_core.prompts import PromptTemplate
-import logging
-from core.matching.embeddings import EmbeddingFactory
-from core.matching.strategies import NaiveMatcherStrategy, PgvectorMatcherStrategy
-from core.services.job_service import get_job_text_representation
 
 logger = logging.getLogger(__name__)
 
-class HybridMatcher(BaseMatcher):
+# Define State
+class MatcherState(TypedDict):
+    cv_text: str
+    cv_embedding: List[float]
+    matches: List[Dict[str, Any]]
+    final_results: List[Dict[str, Any]]
+
+class GraphMatcher:
     """
-    A matcher that combines semantic search (vector similarity) with feature-based scoring (skills, experience).
-    Supports multiple embedding providers (Ollama, Google) and search strategies (Pgvector, Naive).
+    LangGraph-based matcher that treats CV matching as a RAG workflow.
     """
     def __init__(self, 
                  reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
                  embedding_provider: str = "ollama",
-                 strategy: str = "pgvector",
+                 db_url: str = None,
                  **kwargs):
-        """
-        Initialize the HybridMatcher.
-
-        Args:
-            reranker_model: Name of the cross-encoder model for reranking.
-            embedding_provider: 'ollama' or 'google'.
-            strategy: 'pgvector' (database) or 'naive' (in-memory).
-            **kwargs: Additional arguments passed to the embedder.
-        """
+        
+        self.db_url = db_url or os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/cv_matching")
+        self.embedder = EmbeddingFactory.get_embedder(provider=embedding_provider, **kwargs)
         self.llm = get_llm()
         
-        # Initialize Embedder
-        self.embedder = EmbeddingFactory.get_embedder(provider=embedding_provider, **kwargs)
-        
-        # Initialize Strategy
-        if strategy == "naive":
-            self.strategy = NaiveMatcherStrategy()
-        elif strategy == "pgvector":
-            self.strategy = PgvectorMatcherStrategy()
-        else:
-            raise ValueError(f"Unknown strategy: {strategy}")
-            
-        # Initialize reranker
         try:
             self.reranker = CrossEncoder(reranker_model)
         except Exception as e:
             logger.warning(f"Failed to load reranker: {e}. Reranking will be disabled.")
             self.reranker = None
             
-    def _get_embedding(self, text: str, entity_id: Optional[str] = None, entity_type: Optional[str] = None) -> List[float]:
-        """Get embedding with optional ID-based caching."""
-        if entity_id and entity_type and hasattr(self.embedder, 'embed_with_id'):
-            return self.embedder.embed_with_id(text, entity_id, entity_type)
-        return self.embedder.embed_query(text)
+        # Build Graph
+        self.app = self._build_graph()
 
+    def _build_graph(self):
+        workflow = StateGraph(MatcherState)
+        
+        # Add Nodes
+        workflow.add_node("embed", self.embed_cv)
+        workflow.add_node("retrieve", self.retrieve_jobs)
+        workflow.add_node("rerank", self.rerank_jobs)
+        
+        # Add Edges
+        workflow.set_entry_point("embed")
+        workflow.add_edge("embed", "retrieve")
+        workflow.add_edge("retrieve", "rerank")
+        workflow.add_edge("rerank", END)
+        
+        return workflow.compile()
 
- 
-    def _calculate_skills_score(self, cv_skills: List[str], job_skills: List[str]) -> float:
-        if not cv_skills or not job_skills:
-            return 0.0
-        
-        cv_set = set(s.lower() for s in cv_skills)
-        job_set = set(s.lower() for s in job_skills)
-        
-        intersection = cv_set.intersection(job_set)
-        if not job_set:
-            return 0.0
-        
-        return len(intersection) / len(job_set)
+    def embed_cv(self, state: MatcherState):
+        """Generate embedding for the CV."""
+        print("[GRAPH] Node: embed_cv")
+        text = state["cv_text"]
+        embedding = self.embedder.embed_query(text)
+        return {"cv_embedding": embedding}
 
-    def _calculate_experience_score(self, cv_work: List[Dict], job_requirements: Dict) -> float:
-        # Simplified experience scoring
-        if cv_work:
-            return 1.0
-        return 0.0
-
-    def _explain_match(self, cv_text: str, job_text: str, score: float, factors: Dict[str, float]) -> str:
-        """
-        Generate an explanation for the match using LLM.
-        """
-      
-        prompt = PromptTemplate(
-            template="""You are an expert HR assistant. Explain why this candidate is a good match for the job.
-            
-            Candidate Profile:
-            {cv_text}
-            
-            Job Description:
-            {job_text}
-            
-            Match Score: {score}
-            Factors: {factors}
-            
-            Provide a concise explanation (max 3 sentences) highlighting key matching skills and experience.
-            """,
-            input_variables=["cv_text", "job_text", "score", "factors"]
-        )
+    def retrieve_jobs(self, state: MatcherState):
+        """Retrieve top candidates using pgvector."""
+        print("[GRAPH] Node: retrieve_jobs")
+        embedding = state["cv_embedding"]
         
-        return "very good!" # Placeholder
-        
+        conn = psycopg2.connect(self.db_url)
+        cur = conn.cursor()
         try:
-            chain = prompt | self.llm
-            return chain.invoke({
-                "cv_text": cv_text[:1000], 
-                "job_text": job_text[:1000], 
-                "score": f"{score:.2f}",
-                "factors": str(factors)
-            }).content
+            # Optimized vector search
+            cur.execute("""
+                SELECT id, data, 1 - (embedding <=> %s::vector) as similarity
+                FROM jobs
+                WHERE embedding_status = 'completed'
+                ORDER BY embedding <=> %s::vector
+                LIMIT 20;
+            """, (embedding, embedding))
+            
+            results = []
+            for row in cur.fetchall():
+                results.append({
+                    "job_id": row[0],
+                    "data": row[1],
+                    "similarity": float(row[2]),
+                    "job_text": get_job_text_representation(row[1])
+                })
+            
+            print(f"[GRAPH] Retrieved {len(results)} candidates")
+            return {"matches": results}
         except Exception as e:
-            logger.error(f"Explanation failed: {e}")
-            return "N/A"
+            logger.error(f"Retrieval failed: {e}")
+            return {"matches": []}
+        finally:
+            cur.close()
+            conn.close()
 
-
-    def match(self, cv_id: str,) -> List[Dict[str, Any]]:
-        """
-        Match CV against jobs using the configured strategy.
+    def rerank_jobs(self, state: MatcherState):
+        """Rerank candidates using CrossEncoder."""
+        print("[GRAPH] Node: rerank_jobs")
+        matches = state["matches"]
+        cv_text = state["cv_text"]
         
-        Args:
-            cv_data: CV data dictionary
-            job_candidates: Optional list of job candidates (for naive strategy)
-            cv_id: Optional CV ID for ID-based embedding caching
-        """
-        print(f"[MATCH] Starting match process for CV ID: {cv_id}")
+        if not matches:
+            return {"final_results": []}
+            
+        if self.reranker:
+            pairs = [[cv_text, m["job_text"]] for m in matches]
+            try:
+                scores = self.reranker.predict(pairs)
+                for i, m in enumerate(matches):
+                    # Combine scores (50% semantic, 50% reranker)
+                    m["match_score"] = (m["similarity"] + float(scores[i])) / 2
+            except Exception as e:
+                logger.warning(f"Reranking failed: {e}")
+                for m in matches:
+                    m["match_score"] = m["similarity"]
+        else:
+             for m in matches:
+                m["match_score"] = m["similarity"]
+                
+        # Sort
+        matches.sort(key=lambda x: x["match_score"], reverse=True)
+        top_k = matches[:10]
         
-        # 1. Get CV Embedding (use ID-based caching if cv_id provided)
-        print(f"[MATCH] Generating embedding with ID-based caching for CV: {cv_id}")
-        cv_embedding = self._get_embedding(cv_text, entity_id=cv_id, entity_type='cv')
-        
-        # 3. Vector Search - Convert NumPy array to list for pgvector compatibility
-        import numpy as np
-        embedding_for_search = cv_embedding.tolist() if isinstance(cv_embedding, np.ndarray) else cv_embedding
-        print(f"[MATCH] Embedding type for search: {type(embedding_for_search)}, is numpy: {isinstance(cv_embedding, np.ndarray)}")
-        print(f"[MATCH] Starting vector search with limit=20 using strategy: {type(self.strategy).__name__}")
-        
-        semantic_results = self.strategy.search(embedding_for_search, limit=20)
-        print(f"[MATCH] Vector search returned {len(semantic_results)} results")
-        
-        if not semantic_results:
-            logger.warning("[MATCH] No semantic results found, returning empty list")
-            return []
-
-        # 4. Feature Matching & Reranking
-        cv_skills = [s.get("name", "") if isinstance(s, dict) else str(s) for s in cv_data.get("skills", [])]
-        print(f"[MATCH] Extracted {len(cv_skills)} skills from CV: {cv_skills}")
-        
-        results = []
-        for idx, res in enumerate(semantic_results):
-            job = res["data"]
-            job_id = res["job_id"]
-            job_title = job.get("title", "Unknown")
-            print(f"[MATCH] Processing result {idx+1}/{len(semantic_results)}: Job {job_id} - {job_title}")
-            
-            # TODO: Job test is different
-            job_text = get_job_text_representation(job)
-            print(f"[MATCH]   Job text length: {len(job_text)} chars")
-            
-            # Skills Score
-            skills_score = 0.5
-            if "skills" in job:
-                 job_skills = job["skills"]
-                 skills_score = self._calculate_skills_score(cv_skills, job_skills)
-                 print(f"[MATCH]   Skills match: {skills_score:.3f} (CV: {len(cv_skills)}, Job: {len(job_skills)})")
-            else:
-                print(f"[MATCH]   No skills in job, using default score: {skills_score}")
-            
-            # Experience Score
-            experience_score = self._calculate_experience_score(cv_data.get("work", []), job)
-            print(f"[MATCH]   Experience score: {experience_score:.3f}")
-            
-            # Semantic Score
-            semantic_score = float(res["similarity"])
-            print(f"[MATCH]   Semantic similarity: {semantic_score:.3f}")
-            
-            # Weighted Sum
-            final_score = (semantic_score * 0.5) + (skills_score * 0.3) + (experience_score * 0.2)
-            print(f"[MATCH]   Final score: {final_score:.3f} (sem: {semantic_score*0.5:.3f}, skills: {skills_score*0.3:.3f}, exp: {experience_score*0.2:.3f})")
-            
-            results.append({
-                "job_id": res["job_id"],
-                "job_title": job.get("title", "Unknown"),
-                "company": job.get("company", "Unknown"),
-                "match_score": final_score,
-                "matching_factors": {
-                    "semantic_similarity": semantic_score,
-                    "skills_match": skills_score,
-                    "experience_match": experience_score
-                },
-                "job_text": job_text,
-                "raw_job": job
+        # Format for output
+        final_results = []
+        for m in top_k:
+            final_results.append({
+                "job_id": m["job_id"],
+                "job_title": m["data"].get("title", "Unknown"),
+                "company": m["data"].get("company", "Unknown"),
+                "match_score": m["match_score"],
+                "explanation": None, # Pending batch processing
+                "location": m["data"].get("location"),
+                "salary_range": m["data"].get("salary_range")
             })
             
-        # Sort by score
-        print(f"[MATCH] Sorting {len(results)} results by match score")
-        results.sort(key=lambda x: x["match_score"], reverse=True)
-        print(f"[MATCH] Top 3 scores after sorting: {[r['match_score'] for r in results[:3]]}")
+        return {"final_results": final_results}
+
+    def match(self, cv_data: Dict[str, Any], cv_id: str = None) -> List[Dict[str, Any]]:
+        """
+        Execute the matching workflow.
+        """
+        # Prepare input text
+        cv_text = str(cv_data.get("basics", {})) + " " + str(cv_data.get("skills", []))
         
-        # 5. Reranking (Top 10)
-        top_k = results[:10]
-        print(f"[MATCH] Reranking top {len(top_k)} results")
-        if self.reranker:
-            pairs = [[cv_text, res["job_text"]] for res in top_k]
-            print(f"[MATCH] Created {len(pairs)} pairs for reranking")
-            try:
-                rerank_scores = self.reranker.predict(pairs)
-                print(f"[MATCH] Reranker scores: {[float(s) for s in rerank_scores]}")
-                for i, res in enumerate(top_k):
-                    old_score = res["match_score"]
-                    res["match_score"] = (res["match_score"] + float(rerank_scores[i])) / 2
-                    print(f"[MATCH]   Job {i+1} score updated: {old_score:.3f} -> {res['match_score']:.3f}")
-            except Exception as e:
-                logger.warning(f"[MATCH] Reranking failed: {e}")
-        else:
-            print("[MATCH] No reranker available, skipping reranking")
-                
-        # Re-sort
-        print("[MATCH] Re-sorting after reranking")
-        top_k.sort(key=lambda x: x["match_score"], reverse=True)
-        print(f"[MATCH] Top 3 scores after reranking: {[r['match_score'] for r in top_k[:3]]}")
+        # Run Graph
+        inputs = {"cv_text": cv_text, "cv_embedding": [], "matches": [], "final_results": []}
+        result = self.app.invoke(inputs)
         
-        # 6. Explanations (Top 3)
-        print(f"[MATCH] Generating explanations for top {min(3, len(top_k))} results")
-        
-        # Filter out low scores (e.g. < 0)
-        final_results = []
-        for idx, res in enumerate(top_k):
-            if res["match_score"] < 0:
-                print(f"[MATCH] Skipping result {idx+1} due to low score: {res['match_score']}")
-                continue
-            # To save test tokens
-            if len(final_results) < 3:
-                print(f"[MATCH] Generating explanation for result {idx+1}: {res['job_title']}")
-                res["explanation"] = self._explain_match(
-                    cv_text, 
-                    res["job_text"], 
-                    res["match_score"], 
-                    res["matching_factors"]
-                )
-                print(f"[MATCH]   Explanation generated: {res['explanation'][:100]}...")
-            
-            final_results.append(res)
-        
-        print(f"[MATCH] Match process complete, returning {len(final_results)} results")
-        return final_results
+        return result["final_results"]
+
+# For backward compatibility if needed, though we should update callers
+HybridMatcher = GraphMatcher

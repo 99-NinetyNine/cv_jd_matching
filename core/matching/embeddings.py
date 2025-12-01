@@ -24,67 +24,13 @@ class BaseEmbedder(ABC):
     def __init__(self, model: str):
         self.model = model
     
-    def _get_cache_key(self, text: str = None, entity_id: str = None, entity_type: str = None) -> str:
-        """Generate cache key for embedding."""
-        provider = self.__class__.__name__.replace("Embedder", "").lower()
-        
-        if entity_id and entity_type:
-            # ID-based caching for entities
-            return f"emb_{provider}_{self.model}_{entity_type}:{entity_id}"
-        else:
-            # Content-based caching for ad-hoc queries
-            hash_key = hashlib.md5(text.encode()).hexdigest()
-            return f"emb_{provider}_{self.model}:{hash_key}"
-    
-    def _get_from_cache(self, key: str) -> List[float] | None:
-        """Retrieve embedding from cache."""
-        cached = redis_client.get(key)
-        if cached:
-            return np.frombuffer(cached, dtype=np.float64).tolist()
-        return None
-    
-    def _save_to_cache(self, key: str, embedding: List[float], ttl: int):
-        """Save embedding to cache."""
-        redis_client.set(key, np.array(embedding).tobytes(), ttl=ttl)
-    
-    @abstractmethod
-    def _compute_embedding(self, text: str) -> List[float]:
-        """Compute embedding using provider-specific API. Must be implemented by subclasses."""
-        pass
-    
     def embed_query(self, text: str) -> List[float]:
-        """Generate embedding with content-based caching."""
-        key = self._get_cache_key(text=text)
-        cached = self._get_from_cache(key)
-        if cached:
-            return cached
-        
-        embedding = self._compute_embedding(text)
-        self._save_to_cache(key, embedding, ttl=86400)  # 1 day TTL
-        return embedding
+        """Generate embedding directly."""
+        return self._compute_embedding(text)
     
     def embed_with_id(self, text: str, entity_id: str, entity_type: str) -> List[float]:
-        """Generate embedding with ID-based caching for better cache efficiency.
-        
-        Args:
-            text: Text to embed
-            entity_id: Unique identifier (e.g., cv_id, job_id)
-            entity_type: Type of entity ('cv' or 'job')
-        
-        Returns:
-            Embedding vector
-        """
-        # TODO: Check database first if embeddings were computed in background batch processing
-        key = self._get_cache_key(entity_id=entity_id, entity_type=entity_type)
-        cached = self._get_from_cache(key)
-        if cached:
-            logger.info(f"Cache hit for {entity_type} {entity_id}")
-            return cached
-        
-        logger.info(f"Computing embedding for {entity_type} {entity_id}")
-        embedding = self._compute_embedding(text)
-        self._save_to_cache(key, embedding, ttl=604800)  # 7 days TTL
-        return embedding
+        """Generate embedding directly (ignoring ID for now as cache is removed)."""
+        return self._compute_embedding(text)
 
 
 class OllamaEmbedder(BaseEmbedder):
