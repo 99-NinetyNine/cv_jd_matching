@@ -180,3 +180,52 @@ def process_batch_upload(batch_id: str, zip_path: str):
             shutil.rmtree(extract_dir)
         if Path(zip_path).exists():
             Path(zip_path).unlink()
+
+
+@celery_app.task
+def process_pending_embeddings():
+    """
+    Background task to process CVs that were deferred (Smart Batching).
+    Finds CVs with no embedding and computes them.
+    """
+    from core.db.engine import engine
+    from core.db.models import CV
+    from core.services.cv_service import compute_cv_embedding
+    from core.matching.embeddings import EmbeddingFactory
+    
+    logger = celery_app.log.get_default_logger()
+    
+    try:
+        with Session(engine) as session:
+            # Find CVs with no embedding but with content
+            # Note: checking for None embedding. 
+            # In a real app, we might want a 'status' field on CV to distinguish 'failed' from 'pending'
+            cvs = session.exec(select(CV).where(CV.embedding == None).where(CV.content != None).limit(10)).all()
+            
+            if not cvs:
+                return "No pending embeddings"
+                
+            logger.info(f"Processing {len(cvs)} pending embeddings...")
+            
+            embedder = EmbeddingFactory.get_embedder()
+            
+            for cv in cvs:
+                try:
+                    # We need cv_id to use ID-based caching/logging
+                    # Assuming filename is {cv_id}.pdf
+                    cv_id = cv.filename.replace(".pdf", "")
+                    
+                    embedding = compute_cv_embedding(cv_id, cv.content, embedder)
+                    cv.embedding = embedding
+                    session.add(cv)
+                    session.commit()
+                    logger.info(f"Computed embedding for {cv.filename}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to compute embedding for {cv.filename}: {e}")
+                    
+            return f"Processed {len(cvs)} CVs"
+            
+    except Exception as e:
+        logger.error(f"Pending embedding task failed: {e}")
+        return str(e)
