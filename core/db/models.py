@@ -149,6 +149,13 @@ class BatchRequest(SQLModel, table=True):
     # Type of batch: 'embedding', 'explanation', etc.
     batch_type: str = "embedding"
 
+class Prediction(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    prediction_id: str = Field(unique=True, index=True)
+    cv_id: str = Field(index=True)
+    matches: List[Dict] = Field(default=[], sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 # Engine creation
 # database_url = "postgresql://postgres:postgres@localhost:5432/cv_matching"
 # engine = create_engine(database_url)

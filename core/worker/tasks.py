@@ -9,9 +9,164 @@ from core.cache.redis_cache import redis_client
 
 @celery_app.task
 def perform_batch_matches():
-    # TODO
-    # @ using for each cv a batch requests
-    pass
+    """
+    Periodically check for CVs that need fresh matches and process them in batch.
+    1. Find CVs with no predictions or old predictions (> 7 days).
+    2. Perform vector search for each.
+    3. Save predictions (without explanations).
+    4. Queue explanations for batch processing.
+    """
+    from core.db.engine import engine
+    from core.db.models import CV, Prediction, BatchRequest
+    from core.services.batch_service import BatchService
+    from core.services.job_service import get_job_text_representation
+    import uuid
+    
+    logger = celery_app.log.get_default_logger()
+    batch_service = BatchService()
+    
+    try:
+        with Session(engine) as session:
+            # 1. Find target CVs (simplified logic for demo)
+            # Get CVs that have embedding_status='completed'
+            # And either no prediction OR last prediction > 7 days ago
+            # For now, just get all completed CVs and check their last prediction
+            cvs = session.exec(select(CV).where(CV.embedding_status == "completed")).all()
+            
+            target_cv_ids = []
+            for cv in cvs:
+                last_pred = session.exec(
+                    select(Prediction)
+                    .where(Prediction.cv_id == str(cv.id))
+                    .order_by(Prediction.created_at.desc())
+                ).first()
+                
+                if not last_pred:
+                    target_cv_ids.append(cv.id)
+                else:
+                    # Check age
+                    delta = datetime.utcnow() - last_pred.created_at
+                    if delta.days > 7:
+                        target_cv_ids.append(cv.id)
+                        
+            if not target_cv_ids:
+                return "No CVs need matching"
+                
+            logger.info(f"Found {len(target_cv_ids)} CVs for batch matching")
+            
+            # 2. Perform Batch Vector Search using CROSS JOIN LATERAL
+            # This is much more efficient than looping
+            from sqlalchemy import text
+            
+            # Ensure we have a list of IDs for the query
+            cv_ids_str = ",".join([str(id) for id in target_cv_ids])
+            
+            query = text(f"""
+                SELECT 
+                    c.id as cv_id,
+                    j.job_id as job_id,
+                    j.data as job_data,
+                    1 - (c.embedding <=> j.embedding) as similarity
+                FROM cv c
+                CROSS JOIN LATERAL (
+                    SELECT job_id, data, embedding
+                    FROM job j
+                    WHERE j.embedding_status = 'completed'
+                    ORDER BY j.embedding <=> c.embedding
+                    LIMIT 10
+                ) j
+                WHERE c.id IN ({cv_ids_str})
+                AND c.embedding_status = 'completed'
+            """)
+            
+            results = session.exec(query).all()
+            
+            # Group results by cv_id
+            matches_by_cv = {}
+            for row in results:
+                cv_id = str(row.cv_id)
+                if cv_id not in matches_by_cv:
+                    matches_by_cv[cv_id] = []
+                
+                matches_by_cv[cv_id].append({
+                    "job_id": row.job_id,
+                    "data": row.job_data,
+                    "similarity": float(row.similarity)
+                })
+            
+            explanation_requests = []
+            
+            for cv_id, matches in matches_by_cv.items():
+                # Get CV content for prompt
+                # We need to fetch it again or cache it. fetching for now.
+                cv = session.get(CV, int(cv_id))
+                if not cv: continue
+                
+                # 3. Save Predictions (Initial)
+                prediction_id = str(uuid.uuid4())
+                
+                # Prepare matches with empty explanations
+                final_matches = []
+                for m in matches:
+                    m["explanation"] = None # Pending
+                    final_matches.append(m)
+                    
+                    # Prepare explanation request
+                    cv_text = str(cv.content.get("basics", {})) + " " + str(cv.content.get("skills", []))
+                    job_text = get_job_text_representation(m["data"])
+                    
+                    req_id = f"pred-{prediction_id}-job-{m['job_id']}"
+                    
+                    # Construct prompt (simplified)
+                    prompt = f"Explain why this candidate is a good match for the job.\nCandidate: {cv_text[:500]}\nJob: {job_text[:500]}\nMatch Score: {m['similarity']:.2f}"
+                    
+                    explanation_requests.append({
+                        "custom_id": req_id,
+                        "method": "POST",
+                        "url": "/v1/chat/completions",
+                        "body": {
+                            "model": "gpt-3.5-turbo",
+                            "messages": [{"role": "user", "content": prompt}],
+                            "max_tokens": 150
+                        }
+                    })
+                
+                prediction = Prediction(
+                    prediction_id=prediction_id,
+                    cv_id=str(cv.id),
+                    matches=final_matches
+                )
+                session.add(prediction)
+            
+            session.commit()
+            
+            # 4. Submit Batch for Explanations
+            if explanation_requests:
+                # ... Batch submission logic similar to embeddings ...
+                # Use BatchService
+                timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+                filename = f"batch_explanations_{timestamp}.jsonl"
+                file_path = f"/tmp/{filename}"
+                
+                batch_service.create_batch_file(explanation_requests, file_path)
+                file_id = batch_service.upload_batch_file(file_path)
+                
+                batch_req = batch_service.create_batch(
+                    input_file_id=file_id,
+                    endpoint="/v1/chat/completions",
+                    metadata={"type": "explanation", "count": str(len(explanation_requests))}
+                )
+                session.add(batch_req)
+                session.commit()
+                
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    
+                return f"Submitted explanation batch {batch_req.batch_api_id} with {len(explanation_requests)} items"
+                
+    except Exception as e:
+        logger.error(f"Batch matching failed: {e}")
+        return str(e)
 
 
 # for cvs
@@ -228,6 +383,53 @@ def check_batch_status_task():
                 session.add(batch_req)
                 session.commit()
                 # I think we may need to perform upsort bulk here
+                
+                if remote_batch.status == "completed" and batch_req.output_file_id and batch_req.batch_metadata.get("type") == "explanation":
+                     # Handle Explanation Results
+                     logger.info(f"Processing explanation results for batch {batch_req.batch_api_id}")
+                     results = batch_service.retrieve_results(batch_req.output_file_id)
+                     
+                     # Group by prediction_id
+                     # custom_id format: pred-{prediction_id}-job-{job_id}
+                     
+                     updates = {} # prediction_id -> {job_id: explanation}
+                     
+                     for res in results:
+                         custom_id = res.get("custom_id")
+                         if not custom_id: continue
+                         
+                         try:
+                             parts = custom_id.split("-job-")
+                             pred_part = parts[0].replace("pred-", "")
+                             job_id = parts[1]
+                             
+                             explanation = res["response"]["body"]["choices"][0]["message"]["content"]
+                             
+                             if pred_part not in updates:
+                                 updates[pred_part] = {}
+                             updates[pred_part][job_id] = explanation
+                         except Exception as e:
+                             logger.error(f"Failed to parse explanation result {custom_id}: {e}")
+                             
+                     # Update Predictions
+                     for pred_id, job_explanations in updates.items():
+                         prediction = session.exec(select(Prediction).where(Prediction.prediction_id == pred_id)).first()
+                         if prediction:
+                             # Update matches
+                             new_matches = []
+                             for m in prediction.matches:
+                                 if m["job_id"] in job_explanations:
+                                     m["explanation"] = job_explanations[m["job_id"]]
+                                 new_matches.append(m)
+                             
+                             # Force update (SQLModel/SQLAlchemy might not detect JSON mutation)
+                             prediction.matches = list(new_matches) 
+                             session.add(prediction)
+                             
+                     batch_req.completed_at = datetime.utcnow()
+                     batch_req.status = remote_batch.status
+                     session.add(batch_req)
+                     session.commit()
     except Exception as e:
         logger.error(f"Batch status check failed: {e}")
         return str(e)
