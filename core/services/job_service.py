@@ -13,7 +13,7 @@ from core.matching.embeddings import Embedder
 logger = logging.getLogger(__name__)
 
 
-def _get_job_text_representation(job_data: Dict[str, Any]) -> str:
+def get_job_text_representation(job_data: Dict[str, Any]) -> str:
     """Convert job data to text representation for embedding."""
     text = ""
     
@@ -62,7 +62,7 @@ def compute_job_embedding(job_id: str, job_data: Dict[str, Any], embedder: Embed
     Returns:
         Embedding vector
     """
-    text_rep = _get_job_text_representation(job_data)
+    text_rep = get_job_text_representation(job_data)
     
     # Use ID-based caching if available
     if hasattr(embedder, 'embed_with_id'):

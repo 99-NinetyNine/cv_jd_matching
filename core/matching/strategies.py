@@ -60,6 +60,7 @@ class PgvectorMatcherStrategy:
 
     def save_job(self, job_id: str, job_data: Dict[str, Any], embedding: List[float]):
         """Save job and its embedding to the database."""
+        # DEPRECATED
         conn = psycopg2.connect(self.db_url)
         cur = conn.cursor()
         try:
@@ -94,6 +95,7 @@ class PgvectorMatcherStrategy:
         conn = psycopg2.connect(self.db_url)
         cur = conn.cursor()
         try:
+            # TODO those jobs whose embedding status is not pending or others
             cur.execute("""
                 SELECT id, data, 1 - (embedding <=> %s::vector) as similarity
                 FROM jobs

@@ -134,14 +134,14 @@ class BatchService:
         """
         Prepare batch requests for Job embeddings.
         """
-        from core.services.job_service import _get_job_text_representation
+        from core.services.job_service import get_job_text_representation
         
         requests = []
         for job in jobs:
             # Convert job object to dict if needed
             job_data = job.dict() if hasattr(job, 'dict') else job.__dict__
             
-            text_rep = _get_job_text_representation(job_data)
+            text_rep = get_job_text_representation(job_data)
             # Truncate
             text_rep = text_rep[:8000]
 

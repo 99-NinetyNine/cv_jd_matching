@@ -7,7 +7,7 @@ from langchain_core.prompts import PromptTemplate
 import logging
 from core.matching.embeddings import EmbeddingFactory
 from core.matching.strategies import NaiveMatcherStrategy, PgvectorMatcherStrategy
-from core.services.cv_service import get_text_representation
+from core.services.job_service import get_job_text_representation
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,8 @@ class HybridMatcher(BaseMatcher):
             return self.embedder.embed_with_id(text, entity_id, entity_type)
         return self.embedder.embed_query(text)
 
+
+ 
     def _calculate_skills_score(self, cv_skills: List[str], job_skills: List[str]) -> float:
         if not cv_skills or not job_skills:
             return 0.0
@@ -78,19 +80,8 @@ class HybridMatcher(BaseMatcher):
     def _explain_match(self, cv_text: str, job_text: str, score: float, factors: Dict[str, float]) -> str:
         """
         Generate an explanation for the match using LLM.
-        For real-time requests, this calls LLM immediately.
-        For batch processing, this might be skipped or handled differently.
         """
-        # If we want to batch explanations, we shouldn't call this here for real-time requests
-        # unless we are okay with waiting.
-        # The user request implies batching "explain match" too.
-        # This method is currently called by match() which is real-time.
-        # To support batching, we'd need a separate flow where we save the match details 
-        # and process them later.
-        
-        # For now, we'll keep the immediate implementation but return a placeholder if LLM fails
-        # or if we decide to defer it.
-        
+      
         prompt = PromptTemplate(
             template="""You are an expert HR assistant. Explain why this candidate is a good match for the job.
             
@@ -108,7 +99,7 @@ class HybridMatcher(BaseMatcher):
             input_variables=["cv_text", "job_text", "score", "factors"]
         )
         
-        # return "very good!" # Placeholder
+        return "very good!" # Placeholder
         
         try:
             chain = prompt | self.llm
@@ -120,15 +111,10 @@ class HybridMatcher(BaseMatcher):
             }).content
         except Exception as e:
             logger.error(f"Explanation failed: {e}")
-            return "Could not generate explanation."
+            return "N/A"
 
-    def save_job_embedding(self, job_id: str, job_data: Dict[str, Any]):
-        """Save job embedding using strategy with ID-based caching."""
-        job_text = get_text_representation(job_data)
-        embedding = self._get_embedding(job_text, entity_id=job_id, entity_type='job')
-        self.strategy.save_job(job_id, job_data, embedding)
 
-    def match(self, cv_id: str, job_candidates: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def match(self, cv_id: str,) -> List[Dict[str, Any]]:
         """
         Match CV against jobs using the configured strategy.
         
@@ -138,21 +124,10 @@ class HybridMatcher(BaseMatcher):
             cv_id: Optional CV ID for ID-based embedding caching
         """
         print(f"[MATCH] Starting match process for CV ID: {cv_id}")
-        print(f"[MATCH] Job candidates provided: {len(job_candidates) if job_candidates else 0}")
         
         # 1. Get CV Embedding (use ID-based caching if cv_id provided)
         print(f"[MATCH] Generating embedding with ID-based caching for CV: {cv_id}")
         cv_embedding = self._get_embedding(cv_text, entity_id=cv_id, entity_type='cv')
-        
-        # 2. If job_candidates provided, save them (mostly for naive strategy or demo)
-        # not used in real case, just for studyinf purpose
-        if job_candidates:
-            print(f"[MATCH] Saving {len(job_candidates)} job candidates to strategy")
-            for idx, job in enumerate(job_candidates):
-                job_id = job.get("job_id", str(hash(job.get("title", "") + job.get("company", ""))))
-                print(f"[MATCH] Saving job {idx+1}/{len(job_candidates)}: {job_id} - {job.get('title', 'Unknown')}")
-                self.save_job_embedding(job_id, job)
-        
         
         # 3. Vector Search - Convert NumPy array to list for pgvector compatibility
         import numpy as np
@@ -179,7 +154,7 @@ class HybridMatcher(BaseMatcher):
             print(f"[MATCH] Processing result {idx+1}/{len(semantic_results)}: Job {job_id} - {job_title}")
             
             # TODO: Job test is different
-            job_text = get_text_representation(job)
+            job_text = get_job_text_representation(job)
             print(f"[MATCH]   Job text length: {len(job_text)} chars")
             
             # Skills Score
