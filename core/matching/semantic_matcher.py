@@ -49,12 +49,14 @@ class GraphMatcher:
         workflow.add_node("embed", self.embed_cv)
         workflow.add_node("retrieve", self.retrieve_jobs)
         workflow.add_node("rerank", self.rerank_jobs)
+        workflow.add_node("explain", self.explain_matches)
         
         # Add Edges
         workflow.set_entry_point("embed")
         workflow.add_edge("embed", "retrieve")
         workflow.add_edge("retrieve", "rerank")
-        workflow.add_edge("rerank", END)
+        workflow.add_edge("rerank", "explain")
+        workflow.add_edge("explain", END)
         
         return workflow.compile()
 
@@ -107,7 +109,7 @@ class GraphMatcher:
         cv_text = state["cv_text"]
         
         if not matches:
-            return {"final_results": []}
+            return {"matches": []}
             
         if self.reranker:
             pairs = [[cv_text, m["job_text"]] for m in matches]
@@ -126,20 +128,68 @@ class GraphMatcher:
                 
         # Sort
         matches.sort(key=lambda x: x["match_score"], reverse=True)
-        top_k = matches[:10]
+        # Keep top 10 for explanation
+        return {"matches": matches[:10]}
+
+    def explain_matches(self, state: MatcherState):
+        """Generate explanations for top matches using LLM in parallel."""
+        print("[GRAPH] Node: explain_matches")
+        matches = state["matches"]
+        cv_text = state["cv_text"]
         
-        # Format for output
+        # Only explain top 3 to save latency/tokens, or all if requested
+        top_matches = matches[:3]
+        
         final_results = []
-        for m in top_k:
-            final_results.append({
+        
+        # Helper function for parallel execution
+        def generate_explanation(match_item):
+            try:
+                # Enhanced prompt
+                prompt = f"""
+                Analyze the fit between the candidate and the job.
+                
+                CANDIDATE PROFILE:
+                {cv_text[:900]}
+                
+                JOB DESCRIPTION:
+                {match_item['job_text'][:900]}
+                
+                TASK:
+                Provide a concise 3-sentence explanation of why this candidate is a good match for this job.
+                Focus on matching skills, relevant experience, and specific requirements.
+                Do not mention the match score.
+                
+                EXPLANATION:
+                """
+                response = self.llm.invoke(prompt)
+                return match_item["job_id"], response.content
+            except Exception as e:
+                logger.error(f"Explanation failed for job {match_item['job_id']}: {e}")
+                return match_item["job_id"], None
+
+        # Run LLM calls in parallel
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        explanations = {}
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            future_to_job = {executor.submit(generate_explanation, m): m for m in top_matches}
+            for future in as_completed(future_to_job):
+                job_id, explanation = future.result()
+                if explanation:
+                    explanations[job_id] = explanation
+
+        for m in matches:
+            result = {
                 "job_id": m["job_id"],
                 "job_title": m["data"].get("title", "Unknown"),
                 "company": m["data"].get("company", "Unknown"),
                 "match_score": m["match_score"],
-                "explanation": None, # Pending batch processing
+                "explanation": explanations.get(m["job_id"]),
                 "location": m["data"].get("location"),
                 "salary_range": m["data"].get("salary_range")
-            })
+            }
+            final_results.append(result)
             
         return {"final_results": final_results}
 
