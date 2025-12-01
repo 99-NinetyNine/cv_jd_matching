@@ -8,7 +8,7 @@ interface Match {
     job_title: string;
     company: string;
     match_score: number;
-    explanation: string;
+    explanation?: string | null;
     location?: string;
     salary_range?: string;
 }
@@ -284,8 +284,8 @@ const CandidateDashboard = () => {
                         <button
                             onClick={togglePremium}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${isPremium
-                                    ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white shadow-md'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white shadow-md'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
                         >
                             <Crown size={16} />
@@ -681,12 +681,21 @@ const CandidateDashboard = () => {
                                                 <TrendingUp size={14} /> {(match.match_score * 100).toFixed(0)}% Match
                                             </div>
                                         </div>
-                                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 mt-4">
-                                            <p className="text-sm text-slate-700 leading-relaxed">
-                                                <span className="font-semibold text-indigo-600">Why it's a match: </span>
-                                                {match.explanation}
-                                            </p>
-                                        </div>
+                                        {match.explanation ? (
+                                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 mt-4">
+                                                <p className="text-sm text-slate-700 leading-relaxed">
+                                                    <span className="font-semibold text-indigo-600">Why it's a match: </span>
+                                                    {match.explanation}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="mt-4">
+                                                <span className="text-xs text-slate-400 italic flex items-center gap-1">
+                                                    <div className="w-2 h-2 bg-slate-300 rounded-full animate-pulse"></div>
+                                                    AI analysis pending...
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex flex-col justify-center gap-3 min-w-[140px]">
                                         <button

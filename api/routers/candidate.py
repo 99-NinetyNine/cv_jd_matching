@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from pydantic import BaseModel
 from typing import Optional
 from core.db.engine import get_session
-from core.db.models import Job, CV, ParsingCorrection, UserInteraction
+from core.db.models import Job, CV, ParsingCorrection, UserInteraction, Prediction
 from core.matching.semantic_matcher import HybridMatcher
 from core.cache.redis_cache import redis_client
 from core.monitoring.metrics import log_metric
@@ -101,8 +101,6 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
             print(f"Error waiting for confirmation: {e}")
         # 3. Check for Batch vs Immediate Processing
         # Logic: Immediate if Premium OR last update > 1 month ago OR never
-        # For demo, we'll assume everyone is non-premium unless specified
-        # and check last_updated.
         # Determine Premium Status
         import datetime
         from core.db.models import User
@@ -153,8 +151,17 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
                 redis_client.set(cache_key, json.dumps(matches), ttl=3600)
             
                 # Generate unique prediction_id for this matching session
-                # TODO:  we can even save the predictions
                 prediction_id = str(uuid.uuid4())
+                
+                # Save predictions to DB
+                prediction = Prediction(
+                    prediction_id=prediction_id,
+                    cv_id=cv_id,
+                    matches=matches
+                )
+                session.add(prediction)
+                session.commit()
+                
                 logger.info(f"Generated prediction_id {prediction_id} for CV {cv_id} with {len(matches)} matches")
                 
                 # Log metric
@@ -164,7 +171,23 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
                 cv.embedding_status = "pending_batch"
                 session.add(cv)
                 session.commit()
-                # TODO. and take stored predictions for that CV  form the Database
+                
+                # Try to get stored predictions for that CV from the Database
+                # This is useful if the user refreshes the page while batch is processing or if they have old predictions
+                latest_prediction = session.exec(
+                    select(Prediction)
+                    .where(Prediction.cv_id == cv_id)
+                    .order_by(Prediction.created_at.desc())
+                ).first()
+                
+                if latest_prediction:
+                    matches = latest_prediction.matches
+                    prediction_id = latest_prediction.prediction_id
+                    logger.info(f"Using stored predictions for CV {cv_id} (Batch Mode)")
+                else:
+                    matches = []
+                    prediction_id = None
+                    logger.info(f"No stored predictions for CV {cv_id} (Batch Mode)")
                 
 
         # anyways return the matches
@@ -210,6 +233,31 @@ async def get_recommendations(cv_id: str, session: Session = Depends(get_session
         logger.info(f"Returning cached matches for CV {cv_id}")
     else:
         # 3. Compute Matches
+        
+        # Check DB for recent predictions first
+        latest_prediction = session.exec(
+            select(Prediction)
+            .where(Prediction.cv_id == cv_id)
+            .order_by(Prediction.created_at.desc())
+        ).first()
+        
+        # Use stored prediction if it's recent (e.g. < 24 hours) or if we want to avoid re-computing
+        # For now, let's use it if available to save compute
+        if latest_prediction:
+             matches = latest_prediction.matches
+             prediction_id = latest_prediction.prediction_id
+             logger.info(f"Returning stored DB matches for CV {cv_id}")
+             
+             # Cache for next time
+             redis_client.set(cache_key, json.dumps(matches), ttl=3600)
+             
+             return {
+                "cv_id": cv_id,
+                "prediction_id": prediction_id,
+                "matches": matches,
+                "count": len(matches)
+            }
+
         if not cv.content:
              raise HTTPException(status_code=400, detail="CV content not parsed yet")
              
@@ -229,12 +277,25 @@ async def get_recommendations(cv_id: str, session: Session = Depends(get_session
         cv_data_with_emb["embedding"] = cv_embedding
         matches = matcher.match(cv_data_with_emb, cv_id=cv_id)
         
+        # Generate prediction_id
+        prediction_id = str(uuid.uuid4())
+        
+        # Save to DB
+        prediction = Prediction(
+            prediction_id=prediction_id,
+            cv_id=cv_id,
+            matches=matches
+        )
+        session.add(prediction)
+        session.commit()
+        
         # Cache results
         redis_client.set(cache_key, json.dumps(matches), ttl=3600)
         logger.info(f"Computed and cached new matches for CV {cv_id}")
 
-    # 4. Generate prediction_id for tracking
-    prediction_id = str(uuid.uuid4())
+    # 4. Generate prediction_id for tracking (if not already set)
+    if 'prediction_id' not in locals():
+        prediction_id = str(uuid.uuid4())
     
     # Log metric
     log_metric("recommendation_count", len(matches), {"cv_id": cv_id, "prediction_id": prediction_id})
