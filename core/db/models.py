@@ -113,6 +113,19 @@ class Application(SQLModel, table=True):
     decided_by: Optional[int] = Field(default=None, foreign_key="user.id")
     notes: Optional[str] = None
 
+class BatchJob(SQLModel, table=True):
+    """Track batch processing jobs."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    batch_id: str = Field(unique=True, index=True)
+    type: str = "cv_bulk_upload"
+    status: str = "pending"  # pending, processing, completed, failed
+    total_items: int = 0
+    processed_items: int = 0
+    results: Optional[Dict] = Field(default={}, sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: Optional[datetime] = None
+    error: Optional[str] = None
+
 # Engine creation
 # database_url = "postgresql://postgres:postgres@localhost:5432/cv_matching"
 # engine = create_engine(database_url)

@@ -1,12 +1,12 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from core.pipeline import ResumeExtractionPipeline
-from api.routers import auth, candidate, hirer
+from api.routers import candidate, hirer, batch
 import shutil
 import os
 import uuid
 
-app = FastAPI(title="Resume Extraction API")
+app = FastAPI(title="CV Matching Platform API")
 
 # CORS
 app.add_middleware(
@@ -18,9 +18,9 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth.router)
 app.include_router(candidate.router)
 app.include_router(hirer.router)
+app.include_router(batch.router)
 
 # Initialize Pipeline (Common Class)
 # This class encapsulates all logic (Layout Parsing, Extraction, Evaluation)

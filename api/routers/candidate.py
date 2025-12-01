@@ -154,6 +154,74 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
         await websocket.send_json({"status": "error", "message": str(e)})
 
 
+@router.get("/recommendations/{cv_id}")
+async def get_recommendations(cv_id: str, session: Session = Depends(get_session)):
+    """
+    Get job recommendations for an existing CV.
+    Uses cached results if available, otherwise computes new matches.
+    """
+    # 1. Check if CV exists
+    filename = f"{cv_id}.pdf"
+    cv = session.exec(select(CV).where(CV.filename == filename)).first()
+    
+    if not cv:
+        # Try finding by ID directly if filename lookup fails
+        try:
+            cv_int_id = int(cv_id)
+            cv = session.exec(select(CV).where(CV.id == cv_int_id)).first()
+        except ValueError:
+            pass
+            
+    if not cv:
+        raise HTTPException(status_code=404, detail="CV not found")
+        
+    # 2. Check Cache
+    strategy = "pgvector"
+    cache_key = f"match_results:{strategy}:{cv_id}"
+    cached_results = redis_client.get(cache_key)
+    
+    if cached_results:
+        matches = json.loads(cached_results)
+        logger.info(f"Returning cached matches for CV {cv_id}")
+    else:
+        # 3. Compute Matches
+        if not cv.content:
+             raise HTTPException(status_code=400, detail="CV content not parsed yet")
+             
+        # Ensure embedding exists
+        embedder = EmbeddingFactory.get_embedder()
+        cv_embedding = cv.embedding
+        if not cv_embedding or len(cv_embedding) == 0:
+            cv_embedding = compute_cv_embedding(cv_id, cv.content, embedder)
+            # Update DB
+            cv.embedding = cv_embedding
+            session.add(cv)
+            session.commit()
+            
+        # Run Matcher
+        matcher = HybridMatcher(strategy=strategy)
+        cv_data_with_emb = cv.content.copy()
+        cv_data_with_emb["embedding"] = cv_embedding
+        matches = matcher.match(cv_data_with_emb, cv_id=cv_id)
+        
+        # Cache results
+        redis_client.set(cache_key, json.dumps(matches), ttl=3600)
+        logger.info(f"Computed and cached new matches for CV {cv_id}")
+
+    # 4. Generate prediction_id for tracking
+    prediction_id = str(uuid.uuid4())
+    
+    # Log metric
+    log_metric("recommendation_count", len(matches), {"cv_id": cv_id, "prediction_id": prediction_id})
+    
+    return {
+        "cv_id": cv_id,
+        "prediction_id": prediction_id,
+        "matches": matches,
+        "count": len(matches)
+    }
+
+
 # Interaction tracking for evaluation and analytics
 
 class InteractionCreate(BaseModel):
