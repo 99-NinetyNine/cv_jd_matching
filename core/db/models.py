@@ -10,11 +10,18 @@ class CV(SQLModel, table=True):
     filename: str
     content: Dict = Field(default={}, sa_column=Column(JSON))
     embedding: List[float] = Field(default=None, sa_column=Column(Vector(768)))
-    embedding_status: str = Field(default="completed") # pending, pending_batch, processing, completed, failed
+
+    # Statuses for different processing stages
+    parsing_status: str = Field(default="pending") # pending, pending_batch, processing, completed, failed
+    embedding_status: str = Field(default="pending") # pending, pending_batch, processing, completed, failed
+
     is_latest: bool = Field(default=True)
     last_analyzed: Optional[datetime] = Field(default=None)
     last_updated: datetime = Field(default_factory=datetime.utcnow)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Batch processing metadata
+    batch_id: Optional[str] = None  # Links to batch job if processed in batch
 
 class Job(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
