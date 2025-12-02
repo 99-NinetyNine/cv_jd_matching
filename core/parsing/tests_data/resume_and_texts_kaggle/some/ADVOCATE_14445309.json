@@ -1,23 +1,22 @@
 {
   "basics": {
-    "name": null,
+    "name": "",
     "label": "ADVOCATE",
-    "image": null,
-    "email": null,
-    "phone": null,
-    "url": null,
+    "image": "",
+    "email": "thomas@gmail.com",
+    "phone": "",
+    "url": "",
     "summary": "Conscientious attorney with experience in government relations, educational law and advocacy for families with special needs children, two years practice in health law and public policy for military families, two years federal government experience in human rights and foreign affairs with the U.S. Department of State",
-    "location": null,
     "profiles": []
   },
   "work": [
     {
       "name": "Company Name",
       "position": "Advocate",
-      "url": null,
+      "url": "",
       "startDate": "2011-01",
       "endDate": "2013-01",
-      "summary": null,
+      "summary": "",
       "highlights": [
         "Represented the needs of military families with policy makers and national organizations regarding legislation and programs for military special needs dependent children",
         "Assisted families with navigating military health care insurance",
@@ -30,10 +29,10 @@
     {
       "name": "Company Name",
       "position": "United States Foreign Service Officer",
-      "url": null,
+      "url": "",
       "startDate": "2003-01",
       "endDate": "2005-01",
-      "summary": null,
+      "summary": "",
       "highlights": [
         "Student, Department of State, Foreign Service Institute",
         "Studied German language and culture",
@@ -61,10 +60,10 @@
     {
       "organization": "Exceptional Family Member Services",
       "position": "Volunteer Public Advocate/Attorney",
-      "url": null,
+      "url": "",
       "startDate": "1997-01",
       "endDate": "2002-01",
-      "summary": null,
+      "summary": "",
       "highlights": [
         "Provided legal representation to families with special needs children regarding education services",
         "Negotiated Individual Education Plans and 504 documents",
@@ -76,31 +75,25 @@
   "education": [
     {
       "institution": "Georgia State University",
-      "url": null,
+      "url": "",
       "area": "Law",
       "studyType": "Juris Doctor",
-      "startDate": null,
-      "endDate": null,
-      "score": null,
+      "score": "",
       "courses": []
     },
     {
       "institution": "Johannes Kepler University, School of Law",
-      "url": null,
+      "url": "",
       "area": "International law and arbitration",
-      "studyType": null,
-      "startDate": null,
-      "endDate": null,
+      "studyType": "",
       "score": "completed with honors",
       "courses": []
     },
     {
       "institution": "Evangel University",
-      "url": null,
+      "url": "",
       "area": "Government and Communications",
       "studyType": "Bachelor of Arts",
-      "startDate": null,
-      "endDate": null,
       "score": "Summa cum Laude",
       "courses": []
     }
@@ -108,9 +101,8 @@
   "awards": [
     {
       "title": "Evangel University Alumni Social Science Regent Award Recipient",
-      "date": null,
       "awarder": "Evangel University Alumni",
-      "summary": null
+      "summary": ""
     }
   ],
   "certificates": [],
@@ -118,72 +110,72 @@
   "skills": [
     {
       "name": "Member of Maryland Bar",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Statutory Public Policy",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Foreign Affairs",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Human Rights Law",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Diplomacy",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Government Relations",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Special Education Law",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Health Law",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Statutory Procedure",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Multi-task management",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Training",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Liaison",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Federal Government",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Public Policy",
-      "level": null,
+      "level": "",
       "keywords": []
     }
   ],

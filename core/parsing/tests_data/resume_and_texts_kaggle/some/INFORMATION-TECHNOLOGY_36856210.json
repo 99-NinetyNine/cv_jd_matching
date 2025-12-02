@@ -1,18 +1,18 @@
 {
   "basics": {
-    "name": null,
+    "name": "John Doe",
     "label": "Information Technology Professional",
-    "image": null,
-    "email": null,
-    "phone": null,
-    "url": null,
+    "image": "",
+    "email": "John@gmail.com",
+    "phone": "",
+    "url": "",
     "summary": "Dedicated Information Assurance Professional well-versed in analyzing and mitigating risk and finding cost-effective solutions. Excels at boosting performance and productivity by establishing realistic goals and enforcing deadlines. Versatile IT professional with 37 years of Enterprise design and engineering methodology.",
     "location": {
-      "address": null,
-      "postalCode": null,
-      "city": null,
-      "countryCode": null,
-      "region": null
+      "address": "",
+      "postalCode": "",
+      "city": "",
+      "countryCode": "",
+      "region": ""
     },
     "profiles": []
   },
@@ -20,10 +20,10 @@
     {
       "name": "Company Name",
       "position": "Information Technology",
-      "url": null,
+      "url": "",
       "startDate": "2011-02-01",
-      "endDate": "Current",
-      "summary": null,
+      "endDate": "2024-02-01",
+      "summary": "",
       "highlights": [
         "Managed accreditation efforts for a major department modernization project involving 3 accreditation packages each leading to successful Authorization To Operate decisions.",
         "Increased responsibilities to include all departmental accreditation efforts leading to another 3 successful ATOs.",
@@ -39,10 +39,10 @@
     {
       "name": "Company Name",
       "position": "Systems Engineer",
-      "url": null,
+      "url": "",
       "startDate": "2006-02-01",
       "endDate": "2011-02-01",
-      "summary": null,
+      "summary": "",
       "highlights": [
         "Initiated processing strategies to fulfill department analyst requirements by identifying product problems and strengths and collecting data on customer experience.",
         "Reviewed Enterprise compliance to transition to new technology for supporting new processing needs through proper processing power.",
@@ -54,10 +54,10 @@
     {
       "name": "Company Name",
       "position": "Senior Systems Analyst",
-      "url": null,
+      "url": "",
       "startDate": "1999-02-01",
       "endDate": "2006-02-01",
-      "summary": null,
+      "summary": "",
       "highlights": [
         "Improved corporate and client communications and processing requirements, resulting in the design, build, and deployment of 3 Enterprise network solutions.",
         "Expanded capabilities to support Washington Navy Yard, Norfolk Virginia, and Hawaii support facilities.",
@@ -70,10 +70,9 @@
   "education": [
     {
       "institution": "Florence Darlington Technical School",
-      "url": null,
+      "url": "",
       "area": "Electronic Engineering",
       "studyType": "Associate of Science",
-      "startDate": null,
       "endDate": "1980",
       "score": "Dean's list for high GPA.",
       "courses": [
@@ -87,76 +86,76 @@
   "skills": [
     {
       "name": "Enterprise platforms",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Product Lifecycle Management (PLM)",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Project tracking",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Hardware and software upgrade planning",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Product requirements documentation",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Self-directed",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "MS Visio",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Decisive",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Data storage engineering",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Information Assurance",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Risk Management",
-      "level": null,
+      "level": "",
       "keywords": [
         "Risk Management Framework (RMF)"
       ]
     },
     {
       "name": "Active Directory",
-      "level": null,
+      "level": "",
       "keywords": [
         "Active Directory design and deployment"
       ]
     },
     {
       "name": "Workstation build and deployment",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Accreditation",
-      "level": null,
+      "level": "",
       "keywords": [
         "Systems Accreditation Packages",
         "Accreditation Boundarys"
@@ -164,7 +163,7 @@
     },
     {
       "name": "Red Hat Enterprise Linux",
-      "level": null,
+      "level": "",
       "keywords": [
         "installation and hardening",
         "Servers"
@@ -172,52 +171,52 @@
     },
     {
       "name": "Network Design & Troubleshooting",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "High Performance Computing",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Hardware Engineering",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Information Technology",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "MS Windows Servers",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "MS Windows Desktop",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Architectural Diagrams",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Enterprise Strategies",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Vendor Relations",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Desktop Publishing Software",
-      "level": null,
+      "level": "",
       "keywords": [
         "Photoshop",
         "Illustrator",
@@ -226,7 +225,7 @@
     },
     {
       "name": "Teamwork and Collaboration",
-      "level": null,
+      "level": "",
       "keywords": []
     }
   ],

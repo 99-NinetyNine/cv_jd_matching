@@ -1,29 +1,35 @@
 {
   "basics": {
-    "name": null,
+    "name": "John Doe",
     "label": "BUSINESS DEVELOPMENT",
-    "image": null,
-    "email": null,
-    "phone": null,
-    "url": null,
+    "image": "",
+    "email": "john@gmail.com",
+    "phone": "",
+    "url": "",
     "summary": "Results-driven and highly skilled (business development)account manager and marketing professional with over 10 years of experience developing and executing customized account plans to increase sales volume, market share, and relevance in the marketplace. Provide strategic value to customers including leveraging trends in customer industries/marketplaces to shape solutions and approaches driving overall business development. Open and clear communicator with demonstrated strategic vision and disciplined execution.",
     "location": {
-      "address": null,
-      "postalCode": null,
-      "city": null,
-      "countryCode": null,
-      "region": null
+      "address": "",
+      "postalCode": "",
+      "city": "",
+      "countryCode": "",
+      "region": ""
     },
-    "profiles": []
+    "profiles": [
+      {
+        "network": "LinkedIn",
+        "username": "john",
+        "url": "https://linkedin.com/in/john"
+      }
+    ]
   },
   "work": [
     {
       "name": "Davison",
       "position": "Director of New Products",
-      "url": null,
+      "url": "",
       "startDate": "2013-03",
       "endDate": "2014-08",
-      "summary": null,
+      "summary": "",
       "highlights": [
         "Create strategies to develop and expand existing customer sales, which resulted in a 30% increase in monthly sales.",
         "Maximize operational efficiency by coaching staff on various customer service initiatives.",
@@ -41,10 +47,10 @@
     {
       "name": "Amore Limousines/Morgan Coach",
       "position": "Director of Sales and Marketing/Business Development Manager",
-      "url": null,
+      "url": "",
       "startDate": "2006-05",
       "endDate": "2013-03",
-      "summary": null,
+      "summary": "",
       "highlights": [
         "Created sales and revenue-generating opportunities in new markets to improve the bottom line.",
         "Developed strategies to position the business to shape and capitalize on emerging customer and market needs.",
@@ -71,10 +77,10 @@
     {
       "name": "Company Name",
       "position": "Business Development Associate",
-      "url": null,
+      "url": "",
       "startDate": "2003-01",
       "endDate": "2006-05",
-      "summary": null,
+      "summary": "",
       "highlights": [
         "Developed and implemented cold calling strategies to increase client base.",
         "Identified market trends to maximize revenue.",
@@ -87,19 +93,19 @@
     {
       "organization": "The Consortium for Public Education",
       "position": "Member of Board of Directors",
-      "url": null,
+      "url": "",
       "startDate": "2010",
-      "endDate": "Current",
-      "summary": null,
+      "endDate": "2025-12",
+      "summary": "",
       "highlights": []
     },
     {
       "organization": "Turner Elementary School",
       "position": "Creator and Operator of Student of the Month Program",
-      "url": null,
+      "url": "",
       "startDate": "2004",
-      "endDate": "Current",
-      "summary": null,
+      "endDate": "2025-12",
+      "summary": "",
       "highlights": [
         "Created and operate the Student of the Month Program.",
         "Monthly \"limo lunches\" are donated for the Student of the Month program."
@@ -108,10 +114,10 @@
     {
       "organization": "Evergreen Elementary School",
       "position": "Creator and Operator of Read-A-Thon Program",
-      "url": null,
+      "url": "",
       "startDate": "2007",
-      "endDate": "Current",
-      "summary": null,
+      "endDate": "2025-12",
+      "summary": "",
       "highlights": [
         "Created and operate the Read-A-Thon program.",
         "Quarterly \"limo lunches\" are donated for the students that read the most books in each contest period."
@@ -121,21 +127,19 @@
   "education": [
     {
       "institution": "Duquesne University",
-      "url": null,
+      "url": "",
       "area": "Marketing and Legal Studies in Business",
       "studyType": "Bachelor of Science",
-      "startDate": null,
       "endDate": "2006",
-      "score": null,
+      "score": "",
       "courses": []
     }
   ],
   "awards": [
     {
       "title": "Rookie Sales Director of the Year",
-      "date": null,
       "awarder": "Davison",
-      "summary": null
+      "summary": ""
     }
   ],
   "certificates": [],
@@ -143,62 +147,62 @@
   "skills": [
     {
       "name": "Relationship Building",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Networking",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Sales/Market Analysis",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Strategic Planning",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Adept at Closing Sales",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Budget Development",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Business Development",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Account Management",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Analytical Problem Solver",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Profit Optimization",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Cost Efficiency",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Training and Development",
-      "level": null,
+      "level": "",
       "keywords": []
     }
   ],

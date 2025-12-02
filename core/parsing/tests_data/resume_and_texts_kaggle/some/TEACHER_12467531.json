@@ -1,23 +1,29 @@
 {
   "basics": {
-    "name": null,
+    "name": "Teacher N",
     "label": "Teacher",
-    "image": null,
-    "email": null,
-    "phone": null,
-    "url": null,
+    "image": "",
+    "email": "teacher@edu.com",
+    "phone": "",
+    "url": "",
     "summary": "Master teacher looking for new role and Industry. I'm looking to leverage the valuable skills, knowledge, and experiences as a teacher to advance a new client or organization in an executive or leadership position.",
-    "location": null,
+    "location": {
+      "address": "",
+      "city": "",
+      "country": "",
+      "postalCode": "",
+      "region": ""
+    },
     "profiles": []
   },
   "work": [
     {
       "name": "Company Name",
       "position": "Teacher",
-      "url": null,
+      "url": "",
       "startDate": "2014-08",
-      "endDate": "Current",
-      "summary": null,
+      "endDate": "2025-12",
+      "summary": "",
       "highlights": [
         "Teaches classes in accordance with requirements of approved courses of study at expected student progress expectations",
         "Uses information about individual students' academic strengths, needs, and progress in planning",
@@ -36,10 +42,10 @@
     {
       "name": "Company Name",
       "position": "Robotics and Design Instructor",
-      "url": null,
+      "url": "",
       "startDate": "2012-08",
       "endDate": "2014-09",
-      "summary": null,
+      "summary": "",
       "highlights": [
         "Provided clear informative lectures on working with Robotics kits, programming, and theory",
         "Increased educational expertise and knowledge of design by participating in instructor-oriented workshops",
@@ -49,10 +55,10 @@
     {
       "name": "Company Name",
       "position": "Executive Advisor",
-      "url": null,
+      "url": "",
       "startDate": "2015-08",
-      "endDate": "Current",
-      "summary": null,
+      "endDate": "2025-12",
+      "summary": "",
       "highlights": [
         "Portfolio management realizing 20-25% annually over 5 year period",
         "Research and Analytics",
@@ -70,34 +76,30 @@
   "education": [
     {
       "institution": "University of California - Los Angeles",
-      "url": null,
+      "url": "",
       "area": "Teaching",
       "studyType": "M. Ed",
-      "startDate": null,
       "endDate": "2016",
-      "score": null,
+      "score": "",
       "courses": [
         "Master's degree Elementary Education and Teaching"
       ]
     },
     {
       "institution": "The University of New Mexico",
-      "url": null,
+      "url": "",
       "area": "Psychology",
       "studyType": "Bachelor of Arts",
-      "startDate": null,
       "endDate": "2003",
-      "score": null,
+      "score": "",
       "courses": []
     },
     {
       "institution": "Santa Monica College",
-      "url": null,
+      "url": "",
       "area": "Studio Arts",
-      "studyType": null,
-      "startDate": null,
-      "endDate": null,
-      "score": null,
+      "studyType": "",
+      "score": "",
       "courses": []
     }
   ],
@@ -107,57 +109,57 @@
   "skills": [
     {
       "name": "Instructional Design",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Teaching",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Progress Monitoring",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Course Development",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Evernote",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Slack",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Social Media",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Excel",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Outlook",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Adobe Photoshop",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Management",
-      "level": null,
+      "level": "",
       "keywords": [
         "Staff",
         "Projects",
@@ -166,37 +168,37 @@
     },
     {
       "name": "Financial Analysis",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Security Trading",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Portfolio Management",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Liability Structuring",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Research",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Analysis",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Planning",
-      "level": null,
+      "level": "",
       "keywords": []
     }
   ],

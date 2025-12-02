@@ -1,29 +1,35 @@
 {
   "basics": {
-    "name": null,
+    "name": "Test User",
     "label": "Designer",
-    "image": null,
-    "email": null,
-    "phone": null,
-    "url": null,
+    "image": "",
+    "email": "tesy@gmail.com",
+    "phone": "1234567890",
+    "url": "",
     "summary": "Designer with more than 15 years in product design, manufacturing, exhibit design and visual merchandising, with comprehensive management and logistics experience who thrives in dynamically changing environments. Planned, directed, coordinated and assigned manpower to efficiently meet production requirements.",
     "location": {
-      "address": null,
-      "postalCode": null,
-      "city": null,
-      "countryCode": null,
-      "region": null
+      "address": "123 Main St",
+      "postalCode": "12345",
+      "city": "City",
+      "countryCode": "US",
+      "region": "State"
     },
-    "profiles": []
+    "profiles": [
+      {
+        "network": "LinkedIn",
+        "username": "testuser",
+        "url": "https://linkedin.com/in/testuser"
+      }
+    ]
   },
   "work": [
     {
       "name": "Company Name",
       "position": "Designer",
-      "url": null,
+      "url": "",
       "startDate": "2014-03",
       "endDate": "2015-11",
-      "summary": null,
+      "summary": "",
       "highlights": [
         "Design and built custom furniture from client's initial conceptual idea.",
         "Create CAD drawings for approval",
@@ -39,10 +45,10 @@
     {
       "name": "Company Name",
       "position": "Senior Production Manager",
-      "url": null,
+      "url": "",
       "startDate": "2006-02",
       "endDate": "2014-03",
-      "summary": null,
+      "summary": "",
       "highlights": [
         "Management of Production team",
         "Responsible for price quotations of all custom quotes in the Formations product line.",
@@ -63,10 +69,10 @@
     {
       "name": "Company Name",
       "position": "Project Manager",
-      "url": null,
+      "url": "",
       "startDate": "2004-06",
       "endDate": "2005-11",
-      "summary": null,
+      "summary": "",
       "highlights": [
         "Space and furniture planning",
         "Design capabilities along with strong organizational and communication skills, creation of FF&E, color & materials.",
@@ -83,22 +89,22 @@
   "education": [
     {
       "institution": "Santa Monica College",
-      "url": null,
+      "url": "",
       "area": "Interior and Furniture Design",
       "studyType": "Associate of Arts",
-      "startDate": null,
-      "endDate": null,
-      "score": null,
+      "startDate": "2004-06",
+      "endDate": "2005-11",
+      "score": "",
       "courses": []
     },
     {
       "institution": "Universidade Candido Mendes",
-      "url": null,
+      "url": "",
       "area": "Contract",
       "studyType": "Bachelor of Laws (LLB)",
-      "startDate": null,
-      "endDate": null,
-      "score": null,
+      "startDate": "2004-06",
+      "endDate": "2005-11",
+      "score": "",
       "courses": []
     }
   ],
@@ -106,96 +112,95 @@
   "certificates": [
     {
       "name": "Certified Interior Designer",
-      "date": null,
-      "issuer": null,
-      "url": null
+      "issuer": "",
+      "url": ""
     }
   ],
   "publications": [],
   "skills": [
     {
       "name": "Design processing expertise",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "AutoCAD Drafting",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Adobe Photoshop",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Conceptual Design",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Product specifications",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Color and material application",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Strong leader",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Furniture systems",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Vendor sourcing",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Quality control standards",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Procurement",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Product quality",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "GMP Compliance",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "3D Rendering",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Material Board",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Communication skills",
-      "level": null,
+      "level": "",
       "keywords": []
     },
     {
       "name": "Material organizational",
-      "level": null,
+      "level": "",
       "keywords": []
     }
   ],
