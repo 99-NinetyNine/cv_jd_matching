@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 class PDFParser(BaseParser):
     def __init__(self):
         self.llm = get_llm(temperature=0)
-        self.parser = PydanticOutputParser(pydantic_object=Resume)
         
     def _is_scanned_pdf(self, file_path: str) -> bool:
         """
@@ -144,23 +143,27 @@ class PDFParser(BaseParser):
             {format_instructions}
             """,
             input_variables=["cv_text"],
-            partial_variables={"format_instructions": self.parser.get_format_instructions()},
         )
         ##############
+        # REMOVE THIS.
         import json
         with open("core/parsing/tests_data/resume_and_texts_kaggle/some/ADVOCATE_14445309.json", 'r') as f:
             return json.load(f)
 
         ##########
-        chain = prompt | self.llm | self.parser
+        llm_structured = self.llm.with_structured_output(Resume)
+        chain = prompt | llm_structured
         
+
         try:
             resume_data = chain.invoke({"cv_text": full_text})
-            parsed_dict = resume_data.model_dump()
+            parsed_dict = resume_data.model_dump(exclude_none=True)
 
-            # any additional processing can be done here            
+            # any additional processing can be done here     
+            # To comply to JSON Resume       
             return parsed_dict
-            
+
+
         except OutputParserException as e:
             logger.error(f"Parsing error: {e}")
             return {"error": "Failed to parse LLM output", "details": "Please try again later."}
