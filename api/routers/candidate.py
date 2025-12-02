@@ -48,21 +48,49 @@ async def upload_cv(file: UploadFile = File(...), session: Session = Depends(get
     with open(file_path, "wb") as buffer:
         buffer.write(content)
         
-    # 2. Parse CV
-    # For now, we'll just use a mock parser or the text extraction
-    # In a real app, we'd use a proper parser service
+    # 2 Create CV record
+    cv = CV(
+        filename=filename,
+        content={},
+        embedding_status="pending",
+        parsing_status="pending",
+        is_latest=True
+    )
+    session.add(cv)
+    session.commit()
+    session.refresh(cv)
     
-    # Update existing CVs for this user (if we had user_id) to is_latest=False
-    # Since we don't have user_id in the request yet (it's optional in model), 
-    # we might need to rely on some other logic or just assume for now we are adding a new one.
-    # However, if we want to support "latest per user", we need to know the user.
-    # Let's assume for this task that we might have a user_id from dependency if auth was enabled.
-    # For now, we will just set the new one to True (default).
+    return {"cv_id": cv_id, "filename": filename, "path": str(file_path)}
+
+
+# TODO: allow for admin only, for testing manually: upload and parse both
+@router.post("/upload_and_parse")
+async def upload_and_parse_cv(file: UploadFile = File(...), session: Session = Depends(get_session)):
+    # Validation
+    if file.content_type != "application/pdf":
+        # though we can expect user to upload docs and convert it into pdf 
+        # or if user uploads text, then it's more simple, for now let's just allow pdf.
+        # # NOTE: docx => pdf conversion works depending on host os(libreoffics for linux or word processors for windows or mac)
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
+        
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024: # 5MB
+        raise HTTPException(status_code=400, detail="File is too large. Maximum size is 5MB.")
     
-    # If we had a user_id:
-    # session.exec(update(CV).where(CV.owner_id == user_id).values(is_latest=False))
+    file.file.seek(0)
+
+    cv_id = str(uuid.uuid4())
+    file_extension = Path(file.filename).suffix
+    if not file_extension:
+        file_extension = ".pdf"
+        
+    filename = f"{cv_id}{file_extension}"
+    file_path = UPLOAD_DIR / filename
     
-    # Create CV record
+    with open(file_path, "wb") as buffer:
+        buffer.write(content)
+        
+    # 2 Create CV record
     cv = CV(
         filename=filename,
         content={},
@@ -73,9 +101,12 @@ async def upload_cv(file: UploadFile = File(...), session: Session = Depends(get
     session.commit()
     session.refresh(cv)
     
-    return {"cv_id": cv_id, "filename": filename, "path": str(file_path)}
+    data = get_or_parse_cv(cv_id, file_path, session)
+        
+    return {"cv_id": cv_id, "filename": filename, "path": str(file_path), "data": data}
 
 
+# TODO: can be removed for testing matching result immediately after upload
 @router.websocket("/ws/candidate/{cv_id}")
 async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session = Depends(get_session)):
     """Interactive CV processing and matching via WebSocket."""
@@ -209,10 +240,19 @@ async def websocket_endpoint(websocket: WebSocket, cv_id: str, session: Session 
                     logger.info(f"No stored predictions for CV {cv_id} (Batch Mode)")
                 
 
+        # Extract candidate name from CV data
+        candidate_name = "Unknown"
+        if cv and cv.content:
+            basics = cv.content.get("basics", {})
+            if isinstance(basics, dict):
+                candidate_name = basics.get("name", "Unknown")
+        
         # anyways return the matches
         await websocket.send_json({
-            "status": "complete", 
-            "matches": matches,
+            "status": "complete",
+            "candidate_id": cv_id,
+            "candidate_name": candidate_name,
+            "recommendations": matches,  # Renamed from 'matches' to match spec
             "prediction_id": prediction_id,  # Send to frontend
             "cv_id": cv_id
         })
@@ -256,10 +296,18 @@ async def get_recommendations(session: Session = Depends(get_session)):
             .order_by(Prediction.created_at.desc())
         ).first()
         
+        # Extract candidate name
+        candidate_name = "Unknown"
+        if cv and cv.content:
+            basics = cv.content.get("basics", {})
+            if isinstance(basics, dict):
+                candidate_name = basics.get("name", "Unknown")
+        
         return {
-            "cv_id": cv_id,
+            "candidate_id": cv_id,
+            "candidate_name": candidate_name,
+            "recommendations": matches,
             "prediction_id": latest_prediction.prediction_id if latest_prediction else None,
-            "matches": matches,
             "count": len(matches)
         }
     
@@ -279,10 +327,18 @@ async def get_recommendations(session: Session = Depends(get_session)):
          # Cache for next time
          redis_client.set(cache_key, json.dumps(matches), ttl=3600)
          
+         # Extract candidate name
+         candidate_name = "Unknown"
+         if cv and cv.content:
+             basics = cv.content.get("basics", {})
+             if isinstance(basics, dict):
+                 candidate_name = basics.get("name", "Unknown")
+         
          return {
-            "cv_id": cv_id,
+            "candidate_id": cv_id,
+            "candidate_name": candidate_name,
+            "recommendations": matches,
             "prediction_id": prediction_id,
-            "matches": matches,
             "count": len(matches)
         }
 
@@ -291,109 +347,5 @@ async def get_recommendations(session: Session = Depends(get_session)):
         raise HTTPException(status_code=400, detail="CV content not parsed yet")
         
     
-
-# Interaction tracking for evaluation and analytics
-
-class InteractionCreate(BaseModel):
-    user_id: str  # CV ID or user ID
-    job_id: str
-    action: str  # viewed, applied, saved, shortlisted, interviewed, hired, rejected
-    strategy: str = "pgvector"
-    prediction_id: Optional[str] = None  # Unique ID for this prediction session
-    cv_id: Optional[str] = None  # Explicit CV ID for tracking
-    interaction_metadata: Optional[dict] = None  # Additional context (e.g., rejection reason, interview date)
-
-@router.post("/interact")
-async def log_interaction(interaction: InteractionCreate, session: Session = Depends(get_session)):
-    """
-    Log user interactions with job postings for analytics and model evaluation.
-    
-    Supported actions:
-    - Candidate actions: viewed, applied, saved
-    - Hirer actions: shortlisted, interviewed, hired, rejected
-    
-    This data can be used to:
-    - Evaluate recommendation quality
-    - Train better matching models
-    - Provide analytics to hirers
-    - Improve user experience
-    """
-    from core.db.models import Application
-    
-    # Validate action type
-    valid_actions = ['viewed', 'applied', 'saved', 'shortlisted', 'interviewed', 'hired', 'rejected']
-    if interaction.action not in valid_actions:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalidaction. Must be one of: {', '.join(valid_actions)}"
-        )
-    
-    try:
-        # Convert user_id to int if it's numeric, otherwise use hash
-        try:
-            user_id_int = int(interaction.user_id)
-        except ValueError:
-            # Use hash of CV ID as user_id for now
-            user_id_int = hash(interaction.user_id) % (10 ** 8)
-        
-        # Enhance metadata with prediction_id and cv_id if provided
-        enhanced_metadata = interaction.interaction_metadata or {}
-        if interaction.prediction_id:
-            enhanced_metadata['prediction_id'] = interaction.prediction_id
-        if interaction.cv_id:
-            enhanced_metadata['cv_id'] = interaction.cv_id
-        
-        # If action is 'applied', create Application record
-        application_id = None
-        if interaction.action == 'applied' and interaction.cv_id and interaction.prediction_id:
-            # Check if application already exists
-            existing_app = session.exec(
-                select(Application).where(
-                    Application.cv_id == interaction.cv_id,
-                    Application.job_id == interaction.job_id
-                )
-            ).first()
-            
-            if not existing_app:
-                application = Application(
-                    cv_id=interaction.cv_id,
-                    job_id=interaction.job_id,
-                    prediction_id=interaction.prediction_id,
-                    status="pending"
-                )
-                session.add(application)
-                session.flush()  # Get the ID
-                application_id = application.id
-                enhanced_metadata['application_id'] = application_id
-                logger.info(f"Created Application {application_id} for CV {interaction.cv_id}, Job {interaction.job_id}")
-            else:
-                application_id = existing_app.id
-                enhanced_metadata['application_id'] = application_id
-        
-        db_interaction = UserInteraction(
-            user_id=user_id_int, 
-            job_id=interaction.job_id, 
-            action=interaction.action,
-            strategy=interaction.strategy,
-            interaction_metadata=enhanced_metadata if enhanced_metadata else None
-        )
-        session.add(db_interaction)
-        session.commit()
-        
-        logger.info(
-            f"Logged interaction: user={interaction.user_id}, job={interaction.job_id}, "
-            f"action={interaction.action}, prediction_id={interaction.prediction_id}, "
-            f"application_id={application_id}"
-        )
-        
-        return {
-            "status": "success",
-            "message": f"Interaction '{interaction.action}' logged successfully",
-            "application_id": application_id
-        }
-    except Exception as e:
-        logger.error(f"Failed to log interaction: {e}")
-        session.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
 
 
