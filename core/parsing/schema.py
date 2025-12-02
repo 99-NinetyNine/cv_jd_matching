@@ -2,99 +2,99 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field, HttpUrl, EmailStr
 
 class Location(BaseModel):
-    address: Optional[str] = None
-    postalCode: Optional[str] = None
-    city: Optional[str] = None
-    countryCode: Optional[str] = None
-    region: Optional[str] = None
+    address: Optional[str] = ""
+    postalCode: Optional[str] = ""
+    city: Optional[str] = ""
+    countryCode: Optional[str] = ""
+    region: Optional[str] = ""
 
 class Profile(BaseModel):
-    network: Optional[str] = None
-    username: Optional[str] = None
-    url: Optional[str] = None
+    network: Optional[str] = ""
+    username: Optional[str] = ""
+    url: Optional[str] = ""
 
 class Basics(BaseModel):
-    name: Optional[str] = None
-    label: Optional[str] = None
-    image: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    url: Optional[str] = None
-    summary: Optional[str] = None
+    name: Optional[str] = ""
+    label: Optional[str] = ""
+    image: Optional[str] = ""
+    email: Optional[str] = ""
+    phone: Optional[str] = ""
+    url: Optional[str] = ""
+    summary: Optional[str] = ""
     location: Optional[Location] = Field(default_factory=Location)
     profiles: List[Profile] = Field(default_factory=list)
 
 class Work(BaseModel):
-    name: Optional[str] = None
-    position: Optional[str] = None
-    url: Optional[str] = None
-    startDate: Optional[str] = None
-    endDate: Optional[str] = None
-    summary: Optional[str] = None
+    name: Optional[str] = ""
+    position: Optional[str] = ""
+    url: Optional[str] = ""
+    startDate: Optional[str] = ""
+    endDate: Optional[str] = ""
+    summary: Optional[str] = ""
     highlights: List[str] = Field(default_factory=list)
 
 class Volunteer(BaseModel):
-    organization: Optional[str] = None
-    position: Optional[str] = None
-    url: Optional[str] = None
-    startDate: Optional[str] = None
-    endDate: Optional[str] = None
-    summary: Optional[str] = None
+    organization: Optional[str] = ""
+    position: Optional[str] = ""
+    url: Optional[str] = ""
+    startDate: Optional[str] = ""
+    endDate: Optional[str] = ""
+    summary: Optional[str] = ""
     highlights: List[str] = Field(default_factory=list)
 
 class Education(BaseModel):
-    institution: Optional[str] = None
-    url: Optional[str] = None
-    area: Optional[str] = None
-    studyType: Optional[str] = None
-    startDate: Optional[str] = None
-    endDate: Optional[str] = None
-    score: Optional[str] = None
+    institution: Optional[str] = ""
+    url: Optional[str] = ""
+    area: Optional[str] = ""
+    studyType: Optional[str] = ""
+    startDate: Optional[str] = ""
+    endDate: Optional[str] = ""
+    score: Optional[str] = ""
     courses: List[str] = Field(default_factory=list)
 
 class Award(BaseModel):
-    title: Optional[str] = None
-    date: Optional[str] = None
-    awarder: Optional[str] = None
-    summary: Optional[str] = None
+    title: Optional[str] = ""
+    date: Optional[str] = ""
+    awarder: Optional[str] = ""
+    summary: Optional[str] = ""
 
 class Certificate(BaseModel):
-    name: Optional[str] = None
-    date: Optional[str] = None
-    issuer: Optional[str] = None
-    url: Optional[str] = None
+    name: Optional[str] = ""
+    date: Optional[str] = ""
+    issuer: Optional[str] = ""
+    url: Optional[str] = ""
 
 class Publication(BaseModel):
-    name: Optional[str] = None
-    publisher: Optional[str] = None
-    releaseDate: Optional[str] = None
-    url: Optional[str] = None
-    summary: Optional[str] = None
+    name: Optional[str] = ""
+    publisher: Optional[str] = ""
+    releaseDate: Optional[str] = ""
+    url: Optional[str] = ""
+    summary: Optional[str] = ""
 
 class Skill(BaseModel):
-    name: Optional[str] = None
-    level: Optional[str] = None
+    name: Optional[str] = ""
+    level: Optional[str] = ""
     keywords: List[str] = Field(default_factory=list)
 
 class Language(BaseModel):
-    language: Optional[str] = None
-    fluency: Optional[str] = None
+    language: Optional[str] = ""
+    fluency: Optional[str] = ""
 
 class Interest(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = ""
     keywords: List[str] = Field(default_factory=list)
 
 class Reference(BaseModel):
-    name: Optional[str] = None
-    reference: Optional[str] = None
+    name: Optional[str] = ""
+    reference: Optional[str] = ""
 
 class Project(BaseModel):
-    name: Optional[str] = None
-    startDate: Optional[str] = None
-    endDate: Optional[str] = None
-    description: Optional[str] = None
+    name: Optional[str] = ""
+    startDate: Optional[str] = ""
+    endDate: Optional[str] = ""
+    description: Optional[str] = ""
     highlights: List[str] = Field(default_factory=list)
-    url: Optional[str] = None
+    url: Optional[str] = ""
 
 class Resume(BaseModel):
     basics: Optional[Basics] = Field(default_factory=Basics)
