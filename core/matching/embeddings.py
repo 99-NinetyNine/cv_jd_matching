@@ -14,29 +14,24 @@ class Embedder(Protocol):
     def embed_query(self, text: str) -> List[float]:
         ...
 
-    def embed_with_id(self, text: str, entity_id: str, entity_type: str) -> List[float]:
-        ...
+ 
 
 
 class BaseEmbedder(ABC):
     """Base class with shared caching logic for all embedders."""
     
-    def __init__(self, model: str):
+    def __init__(self, model: str, **kwargs):
         self.model = model
     
     def embed_query(self, text: str) -> List[float]:
         """Generate embedding directly."""
         return self._compute_embedding(text)
     
-    def embed_with_id(self, text: str, entity_id: str, entity_type: str) -> List[float]:
-        """Generate embedding directly (ignoring ID for now as cache is removed)."""
-        return self._compute_embedding(text)
-
 
 class OllamaEmbedder(BaseEmbedder):
     """Embedder using local Ollama instance. Zero-cost, privacy-preserving."""
     
-    def __init__(self, model: str = "nomic-embed-text", base_url: str = None):
+    def __init__(self, model: str = "nomic-embed-text", base_url: str = None, **kwargs):
         super().__init__(model)
         self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     
@@ -57,7 +52,7 @@ class OllamaEmbedder(BaseEmbedder):
 class GoogleEmbedder(BaseEmbedder):
     """Embedder using Google Generative AI."""
     
-    def __init__(self, model: str = "models/embedding-001"):
+    def __init__(self, model: str = "models/embedding-001", **kwargs):
         super().__init__(model)
         self.client = GoogleGenerativeAIEmbeddings(model=model)
     

@@ -6,15 +6,19 @@ import logging
 import psycopg2
 import os
 from core.matching.embeddings import EmbeddingFactory
+from core.services.cv_service import get_cv_text_representation
 from core.services.job_service import get_job_text_representation
 from core.llm.factory import get_llm
 from langchain_core.prompts import PromptTemplate
+from core.matching.skills_analyzer import SkillsAnalyzer
+from core.matching.matching_factors import MatchingFactorsCalculator
 
 logger = logging.getLogger(__name__)
 
 # Define State
 class MatcherState(TypedDict):
     cv_text: str
+    cv_data: Dict[str, Any]  # Full CV data for detailed analysis
     cv_embedding: List[float]
     matches: List[Dict[str, Any]]
     final_results: List[Dict[str, Any]]
@@ -32,6 +36,8 @@ class GraphMatcher:
         self.db_url = db_url or os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/cv_matching")
         self.embedder = EmbeddingFactory.get_embedder(provider=embedding_provider, **kwargs)
         self.llm = get_llm()
+        self.skills_analyzer = SkillsAnalyzer()
+        self.factors_calculator = MatchingFactorsCalculator()
         
         try:
             self.reranker = CrossEncoder(reranker_model)
@@ -49,13 +55,15 @@ class GraphMatcher:
         workflow.add_node("embed", self.embed_cv)
         workflow.add_node("retrieve", self.retrieve_jobs)
         workflow.add_node("rerank", self.rerank_jobs)
+        workflow.add_node("analyze_factors", self.analyze_factors)
         workflow.add_node("explain", self.explain_matches)
         
         # Add Edges
         workflow.set_entry_point("embed")
         workflow.add_edge("embed", "retrieve")
         workflow.add_edge("retrieve", "rerank")
-        workflow.add_edge("rerank", "explain")
+        workflow.add_edge("rerank", "analyze_factors")
+        workflow.add_edge("analyze_factors", "explain")
         workflow.add_edge("explain", END)
         
         return workflow.compile()
@@ -71,26 +79,26 @@ class GraphMatcher:
         """Retrieve top candidates using pgvector."""
         print("[GRAPH] Node: retrieve_jobs")
         embedding = state["cv_embedding"]
-        
+
         conn = psycopg2.connect(self.db_url)
         cur = conn.cursor()
         try:
-            # Optimized vector search
+            # Optimized vector search - use data JSON column and canonical_text
             cur.execute("""
-                SELECT id, data, 1 - (embedding <=> %s::vector) as similarity
-                FROM jobs
+                SELECT id, data, canonical_text, 1 - (embedding <=> %s::vector) as similarity
+                FROM job
                 WHERE embedding_status = 'completed'
                 ORDER BY embedding <=> %s::vector
                 LIMIT 20;
             """, (embedding, embedding))
-            
+
             results = []
             for row in cur.fetchall():
                 results.append({
                     "job_id": row[0],
-                    "data": row[1],
-                    "similarity": float(row[2]),
-                    "job_text": get_job_text_representation(row[1])
+                    "data": row[1],  # Complete job data as JSON
+                    "similarity": float(row[3]),
+                    "job_text": row[2]  # Pre-computed canonical_text
                 })
             
             print(f"[GRAPH] Retrieved {len(results)} candidates")
@@ -128,8 +136,55 @@ class GraphMatcher:
                 
         # Sort
         matches.sort(key=lambda x: x["match_score"], reverse=True)
-        # Keep top 10 for explanation
+        # Keep top 10 for detailed analysis
         return {"matches": matches[:10]}
+    
+    def analyze_factors(self, state: MatcherState):
+        """Analyze detailed matching factors for each match."""
+        print("[GRAPH] Node: analyze_factors")
+        matches = state["matches"]
+        cv_data = state["cv_data"]
+        
+        if not matches:
+            return {"matches": []}
+        
+        enhanced_matches = []
+        
+        for match in matches:
+            job_data = match["data"]
+            semantic_similarity = match["match_score"]
+            
+            # Analyze skills
+            skills_analysis = self.skills_analyzer.analyze(cv_data, job_data)
+            
+            # Calculate all matching factors
+            matching_factors = self.factors_calculator.calculate_all_factors(
+                cv_data=cv_data,
+                job_data=job_data,
+                semantic_similarity=semantic_similarity,
+                skills_match=skills_analysis["skills_match"]
+            )
+            
+            # Calculate overall match score (weighted average)
+            overall_score = (
+                matching_factors["skills_match"] * 0.35 +
+                matching_factors["experience_match"] * 0.25 +
+                matching_factors["education_match"] * 0.15 +
+                matching_factors["semantic_similarity"] * 0.25
+            )
+            
+            # Enhance match with detailed factors
+            match["matching_factors"] = matching_factors
+            match["matched_skills"] = skills_analysis["matched_skills"]
+            match["missing_skills"] = skills_analysis["missing_skills"]
+            match["match_score"] = overall_score  # Update with weighted score
+            
+            enhanced_matches.append(match)
+        
+        # Re-sort by new overall score
+        enhanced_matches.sort(key=lambda x: x["match_score"], reverse=True)
+        
+        return {"matches": enhanced_matches}
 
     def explain_matches(self, state: MatcherState):
         """Generate explanations for top matches using LLM in parallel."""
@@ -162,6 +217,10 @@ class GraphMatcher:
                 
                 EXPLANATION:
                 """
+                ####
+                # TODO: remove
+                return match_item["job_id"], "very nice"  # Placeholder to avoid LLM calls during testing
+
                 response = self.llm.invoke(prompt)
                 return match_item["job_id"], response.content
             except Exception as e:
@@ -184,7 +243,12 @@ class GraphMatcher:
                 "job_id": m["job_id"],
                 "job_title": m["data"].get("title", "Unknown"),
                 "company": m["data"].get("company", "Unknown"),
-                "match_score": m["match_score"],
+                "match_score": round(m["match_score"], 3),
+                "matching_factors": {
+                    k: round(v, 3) for k, v in m.get("matching_factors", {}).items()
+                },
+                "matched_skills": m.get("matched_skills", []),
+                "missing_skills": m.get("missing_skills", []),
                 "explanation": explanations.get(m["job_id"]),
                 "location": m["data"].get("location"),
                 "salary_range": m["data"].get("salary_range")
@@ -193,15 +257,28 @@ class GraphMatcher:
             
         return {"final_results": final_results}
 
-    def match(self, cv_data: Dict[str, Any], cv_id: str = None) -> List[Dict[str, Any]]:
+    def match(self, cv_data: Dict[str, Any],) -> List[Dict[str, Any]]:
         """
         Execute the matching workflow.
-        """
-        # Prepare input text
-        cv_text = str(cv_data.get("basics", {})) + " " + str(cv_data.get("skills", []))
         
-        # Run Graph
-        inputs = {"cv_text": cv_text, "cv_embedding": [], "matches": [], "final_results": []}
+        Args:
+            cv_data: Parsed CV data dictionary
+            cv_id: Optional CV identifier
+            
+        Returns:
+            List of job matches with detailed factors and skills analysis
+        """
+        # Prepare input text for embedding
+        cv_text = get_cv_text_representation(cv_data)
+        
+        # Run Graph with full CV data
+        inputs = {
+            "cv_text": cv_text,
+            "cv_data": cv_data,  # Pass full data for detailed analysis
+            "cv_embedding": [],
+            "matches": [],
+            "final_results": []
+        }
         result = self.app.invoke(inputs)
         
         return result["final_results"]
