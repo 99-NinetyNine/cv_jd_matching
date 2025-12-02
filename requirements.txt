@@ -35,3 +35,4 @@ passlib[argon2]
 argon2-cffi
 python-jose[cryptography]
 alembic
+tiktoken>=0.5.0
