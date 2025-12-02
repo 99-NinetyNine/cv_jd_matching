@@ -120,7 +120,7 @@ def get_or_parse_cv(cv_id: str, file_path: Optional[Path], session: Session) -> 
     if cv:
         cv.content = data
     else:
-        cv = CV(filename=f"{cv_id}.pdf", content=data)
+        cv = CV(filename=f"{cv_id}.pdf", content=data, parsing_status="completed")
         session.add(cv)
     
     session.commit()
