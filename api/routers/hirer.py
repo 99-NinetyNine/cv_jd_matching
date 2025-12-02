@@ -6,8 +6,9 @@ from core.db.engine import get_session
 from core.db.models import Job, CV, UserInteraction, Application
 from core.cache.redis_cache import redis_client
 from core.matching.embeddings import EmbeddingFactory
-from core.services.job_service import save_job_with_embedding
+from core.services.job_service import get_job_text_representation
 from core.parsing.schema import JobCreate  # Import canonical schema
+import uuid
 import logging
 
 logger = logging.getLogger(__name__)
@@ -28,28 +29,53 @@ async def create_job(
     Embedding computation happens in background for better performance.
     
     Args:
-        job: Job data
+        job: Job data (JobCreate schema)
         background_tasks: FastAPI background tasks
         session: Database session
         is_test: For testing purpose, if True, compute embedding immediately
         owner_id: ID of the user creating the job (from auth)
     """
     try:
+        # Generate job_id if not provided
+        job_id =  str(uuid.uuid4())
         
-        # Convert Pydantic model to dict
-        job_data = job.model_dump()
+        # Convert JobCreate to dict and prepare for Job model
+        job_data = job.model_dump(exclude_unset=False)
         
-        # Batch if not premium
+        # Convert Location object to dict if present
+        if job.location:
+            job_data['location'] = job.location.model_dump()
+        
+        # Convert Skill objects to dicts if present
+        if job.skills:
+            job_data['skills'] = [skill.model_dump() for skill in job.skills]
+        
+        # Get canonical text representation
+        text_rep = get_job_text_representation(job_data)
+        
+        # Batch if not premium (or test)
         use_batch = not is_test
         
-        # Save job with embedding computed in background or batch
-        db_job = save_job_with_embedding(
-            job_data=job_data,
+        # Create Job instance directly from JobCreate data
+        db_job = Job(
+            job_id=job_id,
             owner_id=owner_id,
-            session=session,
-            batch_mode=use_batch
+            **job_data,
+            embedding_status="pending_batch" if use_batch else "completed",
+            canonical_text=text_rep
         )
+
+        # Compute embedding synchronously or mark for batch
+        if use_batch:
+            logger.info(f"Job {job_id} marked for batch processing")
+        else:
+            logger.info(f"Computing embedding synchronously for job {job_id}")
+            embedder = EmbeddingFactory.get_embedder(provider="ollama")
+            db_job.embedding = embedder.embed_query(text_rep)
         
+        session.add(db_job)
+        session.commit()
+        session.refresh(db_job)
         
         logger.info(f"Job {db_job.job_id} created. Batch mode: {use_batch}")
         

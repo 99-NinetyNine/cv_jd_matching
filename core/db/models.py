@@ -28,48 +28,46 @@ class Job(SQLModel, table=True):
     job_id: str = Field(unique=True)
     owner_id: Optional[int] = Field(default=None, foreign_key="user.id")
 
-    # Core fields
+    # Core fields (matching JobCreate)
     title: str
-    role: Optional[str] = None
     company: str
     description: str
 
-    # Requirements
-    experience: Optional[str] = None  # e.g., "5 to 10 Years"
-    qualifications: Optional[str] = None  # e.g., "BBA, MBA"
-    skills: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))
+    # Optional fields (matching JobCreate)
+    type: Optional[str] = None  # Full-time, part-time, contract, etc.
+    date: Optional[str] = None  # ISO 8601: YYYY-MM-DD or YYYY-MM or YYYY
+    location: Optional[Dict] = Field(default=None, sa_column=Column(JSON))  # Location object {address, postalCode, city, countryCode, region}
+    remote: Optional[str] = None  # Full, Hybrid, None
+    salary: Optional[str] = None  # e.g., "100000"
+    experience: Optional[str] = None  # Senior, Junior, Mid-level, or "5+ years"
+    responsibilities: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))
+    qualifications: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))
+    skills: Optional[List[Dict]] = Field(default=None, sa_column=Column(JSON))  # Skill objects {name, level, keywords}
 
-    # Compensation & Benefits
-    salary_range: Optional[str] = None  # e.g., "$55K-$84K"
+    # Extended fields (matching JobCreate extended fields)
+    role: Optional[str] = None
+    salary_range: Optional[str] = None
     benefits: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))
-
-    # Location
-    location: Optional[str] = None  # City
-    country: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-
-    # Job Details
-    work_type: Optional[str] = None  # Contract, Full-Time, Part-Time
     company_size: Optional[int] = None
-    job_posting_date: Optional[datetime] = None
-
-    # Additional Info
-    preference: Optional[str] = None  # e.g., "Male", "Female", "Any"
+    job_posting_date: Optional[str] = None  # Changed to str to match JobCreate
+    preference: Optional[str] = None
     contact_person: Optional[str] = None
     contact: Optional[str] = None
     job_portal: Optional[str] = None
-    responsibilities: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))
     company_profile: Optional[Dict] = Field(default=None, sa_column=Column(JSON))
-
-    # Embedding
+    country: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    
+    # Embedding and metadata (DB-specific fields)
     embedding: List[float] = Field(default=None, sa_column=Column(Vector(768)))
     embedding_status: str = Field(default="completed") # pending, pending_batch, processing, completed, failed
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Optimized fields for retrieval
     canonical_text: Optional[str] = None  # Pre-computed text representation
-    data: Optional[Dict] = Field(default=None, sa_column=Column(JSON))  # Complete job data as JSON
+
+
 class Feedback(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     job_id: str
