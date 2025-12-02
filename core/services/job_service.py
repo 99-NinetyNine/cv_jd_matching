@@ -8,7 +8,7 @@ import logging
 import uuid
 
 from core.db.models import Job
-from core.matching.embeddings import Embedder
+from core.matching.embeddings import Embedder, EmbeddingFactory
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ def get_job_text_representation(job_data: Dict[str, Any]) -> str:
     return text.strip()
 
 
-def compute_job_embedding(job_id: str, job_data: Dict[str, Any], embedder: Embedder) -> list:
+def compute_job_embedding(job_text:str) -> list:
     """
     Compute job embedding with ID-based caching.
     
@@ -62,23 +62,19 @@ def compute_job_embedding(job_id: str, job_data: Dict[str, Any], embedder: Embed
     Returns:
         Embedding vector
     """
-    text_rep = get_job_text_representation(job_data)
+    embedder = EmbeddingFactory.get_embedder(provider="ollama")
+        
+    em = embedder.embed_query(job_text)
+    print("embeddings", em)
+
+    return  em
     
-    # Use ID-based caching if available
-    if hasattr(embedder, 'embed_with_id'):
-        return embedder.embed_with_id(text_rep, job_id, 'job')
-    else:
-        # Fallback to regular embedding
-        logger.warning(f"Embedder does not support embed_with_id, using embed_query")
-        return embedder.embed_query(text_rep)
 
 
 def save_job_with_embedding(
     job_data: Dict[str, Any],
     owner_id: Optional[int],
     session: Session,
-    embedder: Embedder,
-    compute_async: bool = False,
     batch_mode: bool = False
 ) -> Job:
     """
@@ -89,13 +85,13 @@ def save_job_with_embedding(
         owner_id: ID of the user creating the job
         session: Database session
         embedder: Embedder instance
-        compute_async: If True, return job without embedding (to be computed in background)
         batch_mode: If True, mark for batch processing
     """
     # Generate job_id if not provided or None
     job_id = job_data.get('job_id')
     if not job_id:
         job_id = str(uuid.uuid4())
+    text_rep = get_job_text_representation(job_data)
     
     # Create Job instance
     job = Job(
@@ -123,17 +119,18 @@ def save_job_with_embedding(
         job_portal=job_data.get('job_portal'),
         responsibilities=job_data.get('responsibilities'),
         company_profile=job_data.get('company_profile'),
-        embedding_status="pending" if compute_async else ("pending_batch" if batch_mode else "completed")
+        embedding_status= "pending_batch" if batch_mode else "completed",
+        canonical_text=text_rep,
+        data=job_data  # Store complete job data as JSON
     )
     
     # Compute embedding synchronously or mark for async/batch
     if batch_mode:
         logger.info(f"Job {job_id} marked for batch processing")
-    elif not compute_async:
-        logger.info(f"Computing embedding synchronously for job {job_id}")
-        job.embedding = compute_job_embedding(job_id, job_data, embedder)
     else:
-        logger.info(f"Job {job_id} will have embedding computed asynchronously")
+        logger.info(f"Computing embedding synchronously for job {job_id}")
+
+        job.embedding = compute_job_embedding(text_rep)
     
     session.add(job)
     session.commit()
@@ -141,48 +138,3 @@ def save_job_with_embedding(
     
     return job
 
-
-def update_job_embedding(job_id: str, session: Session, embedder: Embedder) -> bool:
-    """
-    Update job embedding (used by background tasks).
-    
-    Args:
-        job_id: Unique job identifier
-        session: Database session
-        embedder: Embedder instance
-    
-    Returns:
-        True if successful, False otherwise
-    """
-    from sqlmodel import select
-    
-    job = session.exec(select(Job).where(Job.job_id == job_id)).first()
-    if not job:
-        logger.error(f"Job {job_id} not found")
-        return False
-    
-    # Convert job to dict for embedding computation
-    job_data = {
-        'title': job.title,
-        'role': job.role,
-        'company': job.company,
-        'description': job.description,
-        'experience': job.experience,
-        'qualifications': job.qualifications,
-        'skills': job.skills,
-        'salary_range': job.salary_range,
-        'benefits': job.benefits,
-        'location': job.location,
-        'country': job.country,
-        'work_type': job.work_type,
-        'responsibilities': job.responsibilities,
-    }
-    
-    logger.info(f"Computing embedding for job {job_id}")
-    job.embedding = compute_job_embedding(job_id, job_data, embedder)
-    
-    session.add(job)
-    session.commit()
-    
-    logger.info(f"Successfully updated embedding for job {job_id}")
-    return True

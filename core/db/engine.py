@@ -12,3 +12,5 @@ def get_session():
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
+def destroy_db_and_tables():
+    SQLModel.metadata.drop_all(engine)

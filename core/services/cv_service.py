@@ -30,7 +30,7 @@ def get_cv_text_representation(data: Dict[str, Any]) -> str:
     # Basics
     if "basics" in data:
         basics = data["basics"]
-        text += f"Name: {basics.get('name', '')}\n"
+        # text += f"Name: {basics.get('name', '')}\n"
         text += f"Label: {basics.get('label', '')}\n"
         text += f"Summary: {basics.get('summary', '')}\n"
         if "location" in basics and isinstance(basics["location"], dict):

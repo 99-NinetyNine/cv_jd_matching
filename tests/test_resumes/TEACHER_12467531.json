@@ -1,0 +1,209 @@
+{
+  "basics": {
+    "name": "Teacher N",
+    "label": "Teacher",
+    "image": "",
+    "email": "teacher@edu.com",
+    "phone": "",
+    "url": "",
+    "summary": "Master teacher looking for new role and Industry. I'm looking to leverage the valuable skills, knowledge, and experiences as a teacher to advance a new client or organization in an executive or leadership position.",
+    "location": {
+      "address": "",
+      "city": "",
+      "country": "",
+      "postalCode": "",
+      "region": ""
+    },
+    "profiles": []
+  },
+  "work": [
+    {
+      "name": "Company Name",
+      "position": "Teacher",
+      "url": "",
+      "startDate": "2014-08",
+      "endDate": "2025-12",
+      "summary": "",
+      "highlights": [
+        "Teaches classes in accordance with requirements of approved courses of study at expected student progress expectations",
+        "Uses information about individual students' academic strengths, needs, and progress in planning",
+        "Designs activities to engage students in cognitively challenging work aligned to standards",
+        "Uses resources that will promote high levels of learning and student engagement in classroom environment",
+        "Closely monitors student learning in order to understand how students are progressing toward learning objectives and provides students with instructive timely feedback that moves their learning forward",
+        "Establishes classroom environment that is safe and supportive, risk-taking is encouraged, students feel free to contribute their ideas, and teacher and student interactions are respectful and polite to promote positive learning environment for all students",
+        "Initiates and participates in Individualized Education Plan IEP meetings with administrators, faculty, parents, and other parties involved to develop and an IEP for eligible students",
+        "Utilizes District approved behavior modification techniques to implement IEP goals and continually monitors student progress toward IEP goal achievement",
+        "Maintains established policies and procedures for reporting incidents e.g., child abuse, substance abuse, harassment, and violence",
+        "Communicates with families to create partnerships around student learning by providing information about instructional programing and progress of their student",
+        "Fostered team collaboration between students through group projects for Mathematics, ELA, and History",
+        "Evaluates performance of subordinate personnel"
+      ]
+    },
+    {
+      "name": "Company Name",
+      "position": "Robotics and Design Instructor",
+      "url": "",
+      "startDate": "2012-08",
+      "endDate": "2014-09",
+      "summary": "",
+      "highlights": [
+        "Provided clear informative lectures on working with Robotics kits, programming, and theory",
+        "Increased educational expertise and knowledge of design by participating in instructor-oriented workshops",
+        "Modified lessons and curriculum to accommodate diverse learners by using strategies such as peer-assisted learning and group work"
+      ]
+    },
+    {
+      "name": "Company Name",
+      "position": "Executive Advisor",
+      "url": "",
+      "startDate": "2015-08",
+      "endDate": "2025-12",
+      "summary": "",
+      "highlights": [
+        "Portfolio management realizing 20-25% annually over 5 year period",
+        "Research and Analytics",
+        "Provide relocation services for client's and their families",
+        "Take clients though Time and Asset Restructuring System",
+        "Developed anti-fragile contingency and recovery strategies to prepare company and clients for Black Swan Events",
+        "Planned and launched large-scale events that boosted revenue by 15%",
+        "Implemented process improvements to automate office operations, including record tracking and mobile apps",
+        "Improved office efficiency by effectively managing internal communications and correspondence",
+        "Maintained work structure by drafting work contracts"
+      ]
+    }
+  ],
+  "volunteer": [],
+  "education": [
+    {
+      "institution": "University of California - Los Angeles",
+      "url": "",
+      "area": "Teaching",
+      "studyType": "M. Ed",
+      "endDate": "2016",
+      "score": "",
+      "courses": [
+        "Master's degree Elementary Education and Teaching"
+      ]
+    },
+    {
+      "institution": "The University of New Mexico",
+      "url": "",
+      "area": "Psychology",
+      "studyType": "Bachelor of Arts",
+      "endDate": "2003",
+      "score": "",
+      "courses": []
+    },
+    {
+      "institution": "Santa Monica College",
+      "url": "",
+      "area": "Studio Arts",
+      "studyType": "",
+      "score": "",
+      "courses": []
+    }
+  ],
+  "awards": [],
+  "certificates": [],
+  "publications": [],
+  "skills": [
+    {
+      "name": "Instructional Design",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Teaching",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Progress Monitoring",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Course Development",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Evernote",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Slack",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Social Media",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Excel",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Outlook",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Adobe Photoshop",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Management",
+      "level": "",
+      "keywords": [
+        "Staff",
+        "Projects",
+        "Daily Scheduling"
+      ]
+    },
+    {
+      "name": "Financial Analysis",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Security Trading",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Portfolio Management",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Liability Structuring",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Research",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Analysis",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Planning",
+      "level": "",
+      "keywords": []
+    }
+  ],
+  "languages": [],
+  "interests": [],
+  "references": [],
+  "projects": []
+}

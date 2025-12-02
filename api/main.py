@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from api.routers import auth, candidate, hirer
+from api.routers import auth, candidate, hirer, admin, interactions
 import shutil
 import os
 import uuid
@@ -20,6 +20,8 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(candidate.router)
 app.include_router(hirer.router)
+app.include_router(interactions.router)
+app.include_router(admin.router)
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)

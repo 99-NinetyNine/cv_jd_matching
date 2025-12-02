@@ -7,7 +7,6 @@ from core.services.cv_service import (
 from core.services.job_service import (
     compute_job_embedding,
     save_job_with_embedding,
-    update_job_embedding
 )
 
 __all__ = [
@@ -16,5 +15,4 @@ __all__ = [
     'update_cv_with_corrections',
     'compute_job_embedding',
     'save_job_with_embedding',
-    'update_job_embedding'
 ]

@@ -6,8 +6,93 @@ from sqlmodel import select, Session
 import json
 import numpy as np
 from core.cache.redis_cache import redis_client
+from datetime import datetime
+import os
+import logging
 
+logger = logging.getLogger(__name__)
+
+
+# TEST TASK - To verify Celery is working
 @celery_app.task
+def test_celery_task(message: str = "Hello from Celery!"):
+    """
+    Simple test task to verify Celery worker is running.
+    Run with: test_celery_task.delay("Your message")
+    """
+    logger.info(f"TEST TASK EXECUTED: {message}")
+    return {
+        "status": "success",
+        "message": message,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+# BATCH CV PARSING TASK
+@celery_app.task
+def process_batch_cv_parsing():
+    """
+    Process CVs with parsing_status='pending_batch' using efficient batch parsing.
+
+    Flow:
+    1. Find pending CVs
+    2. Extract text from all PDFs in parallel (fast, local)
+    3. Submit batch to OpenAI for structured parsing
+    4. Results are processed by check_batch_status_task() when ready
+    """
+    from core.db.engine import engine
+    from core.parsing.batch_parser import BatchCVParser
+    from pathlib import Path
+
+    logger.info("Starting batch CV parsing task...")
+
+    try:
+        with Session(engine) as session:
+            # Count pending CVs
+            from sqlalchemy import func
+            pending_count = session.exec(
+                select(func.count(CV.id)).where(CV.parsing_status == "pending_batch")
+            ).one()
+
+            if pending_count == 0:
+                logger.info("No CVs pending batch parsing")
+                return "No CVs to process"
+
+            # Dynamic batch sizing based on queue depth and system resources
+            from core.parsing.batch_sizing import get_batch_size_for_task
+            batch_size = get_batch_size_for_task(pending_count, "cv_parsing")
+
+            logger.info(f"Dynamic batch size: {batch_size} (total pending: {pending_count})")
+
+            # Find CVs pending batch parsing
+            cvs_to_parse = session.exec(
+                select(CV).where(CV.parsing_status == "pending_batch").limit(batch_size)
+            ).all()
+
+            logger.info(f"Processing {len(cvs_to_parse)} CVs in this batch")
+
+            # Use new batch parser with parallel text extraction
+            batch_parser = BatchCVParser(max_workers=10)
+            batch_request = batch_parser.submit_batch_parsing_job(
+                cv_records=cvs_to_parse,
+                session=session,
+                uploads_dir=Path("uploads")
+            )
+
+            if batch_request:
+                result = f"Submitted batch parsing job {batch_request.batch_api_id} with {len(cvs_to_parse)} CVs"
+                logger.info(result)
+                return result
+            else:
+                return "Failed to submit batch parsing job"
+
+    except Exception as e:
+        logger.error(f"Batch parsing task failed: {e}")
+        return f"Error: {str(e)}"
+
+
+# Commented out to prevent auto-execution during development
+# @celery_app.task
 def perform_batch_matches():
     """
     Periodically check for CVs that need fresh matches and process them in batch.
@@ -60,14 +145,15 @@ def perform_batch_matches():
             cv_ids_str = ",".join([str(id) for id in target_cv_ids])
             
             query = text(f"""
-                SELECT 
+                SELECT
                     c.id as cv_id,
                     j.job_id as job_id,
                     j.data as job_data,
+                    j.canonical_text as job_text,
                     1 - (c.embedding <=> j.embedding) as similarity
                 FROM cv c
                 CROSS JOIN LATERAL (
-                    SELECT job_id, data, embedding
+                    SELECT id as job_id, data, canonical_text, embedding
                     FROM job j
                     WHERE j.embedding_status = 'completed'
                     ORDER BY j.embedding <=> c.embedding
@@ -85,10 +171,11 @@ def perform_batch_matches():
                 cv_id = str(row.cv_id)
                 if cv_id not in matches_by_cv:
                     matches_by_cv[cv_id] = []
-                
+
                 matches_by_cv[cv_id].append({
                     "job_id": row.job_id,
                     "data": row.job_data,
+                    "job_text": row.job_text,  # Use pre-computed canonical_text
                     "similarity": float(row.similarity)
                 })
             
@@ -108,10 +195,10 @@ def perform_batch_matches():
                 for m in matches:
                     m["explanation"] = None # Pending
                     final_matches.append(m)
-                    
+
                     # Prepare explanation request
                     cv_text =  get_cv_text_representation(cv.content)
-                    job_text = get_job_text_representation(m["data"])
+                    job_text = m["job_text"]  # Use pre-computed canonical_text
                     
                     req_id = f"pred-{prediction_id}-job-{m['job_id']}"
                     
@@ -171,8 +258,9 @@ def perform_batch_matches():
         return str(e)
 
 
+# Commented out to prevent auto-execution during development
 # for cvs
-@celery_app.task
+# @celery_app.task
 def submit_cv_batch_embeddings_task():
     """
     Collects CVs with embedding_status='pending_batch' and submits a batch job to OpenAI.
@@ -244,8 +332,9 @@ def submit_cv_batch_embeddings_task():
         logger.error(f"Batch submission failed: {e}")
         return str(e)
 
+# Commented out to prevent auto-execution during development
 # for jobs
-@celery_app.task
+# @celery_app.task
 def submit_batch_job_embeddings_task():
     """
     Collects Jobs with embedding_status='pending_batch' and submits a batch job.
@@ -302,8 +391,9 @@ def submit_batch_job_embeddings_task():
         logger.error(f"Job batch submission failed: {e}")
         return str(e)
 
+# Commented out to prevent auto-execution during development
 # for both CVs and Jobs status polling!
-@celery_app.task
+# @celery_app.task
 def check_batch_status_task():
     """
     Checks status of active batch jobs and processes results.
@@ -370,6 +460,24 @@ def check_batch_status_task():
                                         logger.error(f"Failed to update Job {job_id}: {e}")
                                         job.embedding_status = "failed"
                                         session.add(job)
+
+                    elif batch_req.batch_metadata.get("type") == "cv_parsing":
+                        # Handle CV Parsing Results
+                        logger.info(f"Processing CV parsing results for batch {batch_req.batch_api_id}")
+                        from core.parsing.batch_parser import BatchCVParser
+
+                        batch_parser = BatchCVParser()
+                        stats = batch_parser.process_parsing_results(batch_req, session)
+                        logger.info(f"CV parsing stats: {stats}")
+
+                    elif batch_req.batch_metadata.get("type") == "explanation_simple":
+                        # Handle Simple Explanation Results (ONE sentence!)
+                        logger.info(f"Processing simple explanation results for batch {batch_req.batch_api_id}")
+                        from core.matching.batch_explainer import SimpleBatchExplainer
+
+                        explainer = SimpleBatchExplainer()
+                        stats = explainer.process_explanation_results(batch_req, session)
+                        logger.info(f"Simple explanation stats: {stats}")
 
                     elif batch_req.batch_metadata.get("type") == "explanation":
                          # Handle Explanation Results

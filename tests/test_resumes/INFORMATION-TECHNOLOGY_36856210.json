@@ -1,0 +1,236 @@
+{
+  "basics": {
+    "name": "John Doe",
+    "label": "Information Technology Professional",
+    "image": "",
+    "email": "John@gmail.com",
+    "phone": "",
+    "url": "",
+    "summary": "Dedicated Information Assurance Professional well-versed in analyzing and mitigating risk and finding cost-effective solutions. Excels at boosting performance and productivity by establishing realistic goals and enforcing deadlines. Versatile IT professional with 37 years of Enterprise design and engineering methodology.",
+    "location": {
+      "address": "",
+      "postalCode": "",
+      "city": "",
+      "countryCode": "",
+      "region": ""
+    },
+    "profiles": []
+  },
+  "work": [
+    {
+      "name": "Company Name",
+      "position": "Information Technology",
+      "url": "",
+      "startDate": "2011-02-01",
+      "endDate": "2024-02-01",
+      "summary": "",
+      "highlights": [
+        "Managed accreditation efforts for a major department modernization project involving 3 accreditation packages each leading to successful Authorization To Operate decisions.",
+        "Increased responsibilities to include all departmental accreditation efforts leading to another 3 successful ATOs.",
+        "Currently working on 4 new accreditations including re-authorization for an existing project.",
+        "Succeeded in writing and implementing vulnerability management for existing accredited systems.",
+        "Coordinated with ONI Enterprise in critical design decisions and helped integrate the program smoothly into the Enterprise by analyzing the Enterprise business model.",
+        "Managed specific STIG compliance and hardening for different configurations and services required for domain integration.",
+        "Analyzed complex computer systems to assess vulnerability and risk.",
+        "Supervised 5 external computer consultants and vendors.",
+        "Managed application patches, data backup, security changes and network configuration."
+      ]
+    },
+    {
+      "name": "Company Name",
+      "position": "Systems Engineer",
+      "url": "",
+      "startDate": "2006-02-01",
+      "endDate": "2011-02-01",
+      "summary": "",
+      "highlights": [
+        "Initiated processing strategies to fulfill department analyst requirements by identifying product problems and strengths and collecting data on customer experience.",
+        "Reviewed Enterprise compliance to transition to new technology for supporting new processing needs through proper processing power.",
+        "Studied local infrastructure design and adopted off-the-shelf solutions to grow local storage to over 200TB, saving over a million dollars in purchasing and maintenance costs.",
+        "Designed, purchased, and accredited a Red Hat Linux high compute cluster for operation in the Enterprise to improve processing of future big data formats.",
+        "Improved big data analytical processing, reducing time from 30 hours to 30 minutes and allowing for more robust data through higher selections of sensors, frequencies, and range."
+      ]
+    },
+    {
+      "name": "Company Name",
+      "position": "Senior Systems Analyst",
+      "url": "",
+      "startDate": "1999-02-01",
+      "endDate": "2006-02-01",
+      "summary": "",
+      "highlights": [
+        "Improved corporate and client communications and processing requirements, resulting in the design, build, and deployment of 3 Enterprise network solutions.",
+        "Expanded capabilities to support Washington Navy Yard, Norfolk Virginia, and Hawaii support facilities.",
+        "Fulfilled requirements for detecting crucial network software/hardware weaknesses and developing preventive strategies and solutions for avoiding interruptions and increasing system security.",
+        "Documented system layouts, wiring diagrams, and addressing schema to understand layouts and make informed solutions to upper management."
+      ]
+    }
+  ],
+  "volunteer": [],
+  "education": [
+    {
+      "institution": "Florence Darlington Technical School",
+      "url": "",
+      "area": "Electronic Engineering",
+      "studyType": "Associate of Science",
+      "endDate": "1980",
+      "score": "Dean's list for high GPA.",
+      "courses": [
+        "Electronic Engineering"
+      ]
+    }
+  ],
+  "awards": [],
+  "certificates": [],
+  "publications": [],
+  "skills": [
+    {
+      "name": "Enterprise platforms",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Product Lifecycle Management (PLM)",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Project tracking",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Hardware and software upgrade planning",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Product requirements documentation",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Self-directed",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "MS Visio",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Decisive",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Data storage engineering",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Information Assurance",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Risk Management",
+      "level": "",
+      "keywords": [
+        "Risk Management Framework (RMF)"
+      ]
+    },
+    {
+      "name": "Active Directory",
+      "level": "",
+      "keywords": [
+        "Active Directory design and deployment"
+      ]
+    },
+    {
+      "name": "Workstation build and deployment",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Accreditation",
+      "level": "",
+      "keywords": [
+        "Systems Accreditation Packages",
+        "Accreditation Boundarys"
+      ]
+    },
+    {
+      "name": "Red Hat Enterprise Linux",
+      "level": "",
+      "keywords": [
+        "installation and hardening",
+        "Servers"
+      ]
+    },
+    {
+      "name": "Network Design & Troubleshooting",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "High Performance Computing",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Hardware Engineering",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Information Technology",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "MS Windows Servers",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "MS Windows Desktop",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Architectural Diagrams",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Enterprise Strategies",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Vendor Relations",
+      "level": "",
+      "keywords": []
+    },
+    {
+      "name": "Desktop Publishing Software",
+      "level": "",
+      "keywords": [
+        "Photoshop",
+        "Illustrator",
+        "HTML"
+      ]
+    },
+    {
+      "name": "Teamwork and Collaboration",
+      "level": "",
+      "keywords": []
+    }
+  ],
+  "languages": [],
+  "interests": [],
+  "references": [],
+  "projects": []
+}
