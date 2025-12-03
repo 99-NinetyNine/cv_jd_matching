@@ -319,8 +319,13 @@ Respond with valid JSON matching the schema above. Extract ALL relevant informat
                 from core.parsing.schema import Resume
                 Resume(**parsed_data)  # This will raise if invalid
 
-                # Update CV record
+                # OPTIMIZATION: Pre-compute canonical text representation
+                from core.services.cv_service import get_cv_text_representation
+                canonical_text = get_cv_text_representation(parsed_data)
+
+                # Update CV record with parsed data AND canonical text
                 cv.content = parsed_data
+                cv.canonical_text = canonical_text
                 cv.parsing_status = "completed"
                 session.add(cv)
 
