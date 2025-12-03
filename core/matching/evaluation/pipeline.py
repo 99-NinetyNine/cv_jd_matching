@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
-from core.matching.semantic_matcher import HybridMatcher
+from core.matching.semantic_matcher import GraphMatcher
 from core.matching.evaluation.metrics import Evaluator, PerformanceMonitor
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ class EvaluationPipeline:
     """
     
     def __init__(self, db_session=None):
-        self.matcher = HybridMatcher()
+        self.matcher = GraphMatcher()
         self.evaluator = Evaluator()
         self.monitor = PerformanceMonitor(db_session)
         self.session = db_session

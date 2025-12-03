@@ -283,5 +283,3 @@ class GraphMatcher:
         
         return result["final_results"]
 
-# For backward compatibility if needed, though we should update callers
-HybridMatcher = GraphMatcher

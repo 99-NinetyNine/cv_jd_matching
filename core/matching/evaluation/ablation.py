@@ -1,6 +1,6 @@
 from typing import Dict, List, Any
 from core.evaluation.metrics import Evaluator
-from core.matching.semantic_matcher import HybridMatcher
+from core.matching.semantic_matcher import GraphMatcher
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,12 +16,12 @@ class AblationStudy:
         logger.info(f"Running experiment: {config_name}")
         
         # Configure matcher based on experiment
-        # Note: This requires HybridMatcher to be configurable. 
+        # Note: This requires GraphMatcher to be configurable. 
         # For now, we assume we can toggle features via flags or subclassing.
-        # Let's assume HybridMatcher takes flags.
+        # Let's assume GraphMatcher takes flags.
         
         # Mocking the config application for this demo
-        matcher = HybridMatcher() # In real implementation, pass config
+        matcher = GraphMatcher() # In real implementation, pass config
         
         predictions = {}
         for cv in self.cvs:
