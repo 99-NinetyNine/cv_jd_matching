@@ -2,28 +2,38 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ollama-service
+  labels:
+    app: cv-matching
+    component: ollama
 spec:
   selector:
-    app: ollama
+    app: cv-matching
+    component: ollama
   ports:
-    - protocol: TCP
-      port: 11434
-      targetPort: 11434
+  - protocol: TCP
+    port: 11434
+    targetPort: 11434
+  type: ClusterIP
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ollama
+  labels:
+    app: cv-matching
+    component: ollama
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: ollama
+      app: cv-matching
+      component: ollama
   template:
     metadata:
       labels:
-        app: ollama
+        app: cv-matching
+        component: ollama
     spec:
       containers:
       - name: ollama
@@ -31,12 +41,12 @@ spec:
         ports:
         - containerPort: 11434
         resources:
-          limits:
-            memory: "4Gi"
-            cpu: "2000m"
           requests:
             memory: "2Gi"
             cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
         # If you have a GPU node, uncomment below
         # resources:
         #   limits:

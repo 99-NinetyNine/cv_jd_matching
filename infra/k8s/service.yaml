@@ -1,12 +1,74 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: cv-job-matching-api
+  name: cv-matching-api
+  labels:
+    app: cv-matching
+    component: api
 spec:
   selector:
-    app: cv-job-matching-api
+    app: cv-matching
+    component: api
   ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 8000
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
   type: LoadBalancer
+
+---
+# HorizontalPodAutoscaler for API
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-hpa
+  labels:
+    app: cv-matching
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cv-matching-api
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# HorizontalPodAutoscaler for Workers
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: worker-hpa
+  labels:
+    app: cv-matching
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cv-matching-worker
+  minReplicas: 5
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

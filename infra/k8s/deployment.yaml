@@ -1,20 +1,27 @@
+# API Deployment (uses shared image)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cv-job-matching-api
+  name: cv-matching-api
+  labels:
+    app: cv-matching
+    component: api
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
-      app: cv-job-matching-api
+      app: cv-matching
+      component: api
   template:
     metadata:
       labels:
-        app: cv-job-matching-api
+        app: cv-matching
+        component: api
     spec:
       containers:
       - name: api
-        image: cv-job-matching-api:latest
+        image: cv-matching-app:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
         env:
@@ -23,14 +30,159 @@ spec:
             secretKeyRef:
               name: cv-secrets
               key: DATABASE_URL
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
         - name: OLLAMA_BASE_URL
           value: "http://ollama-service:11434"
-        - name: SECRET_KEY
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+
+---
+# Celery Worker Deployment (reuses same image as API)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cv-matching-worker
+  labels:
+    app: cv-matching
+    component: worker
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: cv-matching
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: cv-matching
+        component: worker
+    spec:
+      containers:
+      - name: worker
+        image: cv-matching-app:latest
+        imagePullPolicy: IfNotPresent
+        command: ["celery", "-A", "core.worker.celery_app", "worker", "--loglevel=info"]
+        env:
+        - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
               name: cv-secrets
-              key: SECRET_KEY
+              key: DATABASE_URL
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: OLLAMA_BASE_URL
+          value: "http://ollama-service:11434"
         resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+
+---
+# Celery Beat Deployment (reuses same image, only 1 replica)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cv-matching-beat
+  labels:
+    app: cv-matching
+    component: beat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cv-matching
+      component: beat
+  template:
+    metadata:
+      labels:
+        app: cv-matching
+        component: beat
+    spec:
+      containers:
+      - name: beat
+        image: cv-matching-app:latest
+        imagePullPolicy: IfNotPresent
+        command: ["celery", "-A", "core.worker.celery_app", "beat", "--loglevel=info"]
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: cv-secrets
+              key: DATABASE_URL
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
           limits:
             memory: "512Mi"
+            cpu: "200m"
+
+---
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  labels:
+    app: cv-matching
+    component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cv-matching
+      component: redis
+  template:
+    metadata:
+      labels:
+        app: cv-matching
+        component: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
             cpu: "500m"
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  labels:
+    app: cv-matching
+    component: redis
+spec:
+  selector:
+    app: cv-matching
+    component: redis
+  ports:
+  - protocol: TCP
+    port: 6379
+    targetPort: 6379
+  type: ClusterIP
