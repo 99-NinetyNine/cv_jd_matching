@@ -9,7 +9,9 @@ class CV(SQLModel, table=True):
     owner_id: Optional[int] = Field(default=None, foreign_key="user.id")
     filename: str
     content: Dict = Field(default={}, sa_column=Column(JSON))
-    embedding: List[float] = Field(default=None, sa_column=Column(Vector(768)))
+    # Dimension supports OpenAI (1536), Gemini (768), Ollama (768-1024)
+    # OpenAI text-embedding-3-small/large use 1536 dimensions
+    embedding: List[float] = Field(default=None, sa_column=Column(Vector(1536)))
 
     # Statuses for different processing stages
     parsing_status: str = Field(default="pending") # pending, pending_batch, processing, completed, failed
@@ -63,7 +65,9 @@ class Job(SQLModel, table=True):
     longitude: Optional[float] = None
     
     # Embedding and metadata (DB-specific fields)
-    embedding: List[float] = Field(default=None, sa_column=Column(Vector(768)))
+    # Dimension supports OpenAI (1536), Gemini (768), Ollama (768-1024)
+    # OpenAI text-embedding-3-small/large use 1536 dimensions
+    embedding: List[float] = Field(default=None, sa_column=Column(Vector(1536)))
     embedding_status: str = Field(default="completed") # pending, pending_batch, processing, completed, failed
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
