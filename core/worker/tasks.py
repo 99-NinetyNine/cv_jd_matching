@@ -1,7 +1,7 @@
 from core.worker.celery_app import celery_app
 from core.matching.semantic_matcher import HybridMatcher
 from core.db.engine import get_session
-from core.db.models import Job
+from core.db.models import Job, CV, Prediction
 from sqlmodel import select, Session
 import json
 import numpy as np
@@ -29,7 +29,7 @@ def test_celery_task(message: str = "Hello from Celery!"):
 
 
 # BATCH CV PARSING TASK
-@celery_app.task
+#@celery_app.task
 def process_batch_cv_parsing():
     """
     Process CVs with parsing_status='pending_batch' using efficient batch parsing.
@@ -49,6 +49,7 @@ def process_batch_cv_parsing():
     try:
         with Session(engine) as session:
             # Count pending CVs
+            # EXCLUDE failed/cancelled items (for data analyst review)
             from sqlalchemy import func
             pending_count = session.exec(
                 select(func.count(CV.id)).where(CV.parsing_status == "pending_batch")
@@ -65,8 +66,12 @@ def process_batch_cv_parsing():
             logger.info(f"Dynamic batch size: {batch_size} (total pending: {pending_count})")
 
             # Find CVs pending batch parsing
+            # Note: Items with status='failed' are excluded (require manual review)
             cvs_to_parse = session.exec(
-                select(CV).where(CV.parsing_status == "pending_batch").limit(batch_size)
+                select(CV)
+                .where(CV.parsing_status == "pending_batch")
+                .order_by(CV.created_at)  # Process oldest first
+                .limit(batch_size)
             ).all()
 
             logger.info(f"Processing {len(cvs_to_parse)} CVs in this batch")
@@ -183,6 +188,7 @@ def submit_cv_batch_embeddings_task():
     try:
         with Session(engine) as session:
             # SCALABILITY: Count pending CVs first
+            # EXCLUDE failed/cancelled items (for data analyst review)
             pending_count = session.exec(
                 select(func.count(CV.id)).where(CV.embedding_status == "pending_batch")
             ).one()
@@ -197,6 +203,7 @@ def submit_cv_batch_embeddings_task():
             logger.info(f"CV embedding batch size: {batch_size} (total pending: {pending_count})")
 
             # Find pending batch CVs with LIMIT
+            # Note: Items with status='failed' are excluded (require manual review)
             cvs = session.exec(
                 select(CV)
                 .where(CV.embedding_status == "pending_batch")
@@ -277,6 +284,7 @@ def submit_batch_job_embeddings_task():
     try:
         with Session(engine) as session:
             # SCALABILITY: Count pending jobs first
+            # EXCLUDE failed/cancelled items (for data analyst review)
             pending_count = session.exec(
                 select(func.count(Job.id)).where(Job.embedding_status == "pending_batch")
             ).one()
@@ -291,6 +299,7 @@ def submit_batch_job_embeddings_task():
             logger.info(f"Job embedding batch size: {batch_size} (total pending: {pending_count})")
 
             # Find pending batch jobs with LIMIT
+            # Note: Items with status='failed' are excluded (require manual review)
             jobs = session.exec(
                 select(Job)
                 .where(Job.embedding_status == "pending_batch")
@@ -335,28 +344,91 @@ def submit_batch_job_embeddings_task():
         logger.error(f"Job batch submission failed: {e}")
         return str(e)
 
+def _handle_batch_errors(batch_req, error_file_id, session, batch_service):
+    """
+    Handle error file from batch: mark individual failed items.
+
+    Error file format:
+    {"id": "batch_req_123", "custom_id": "cv-456", "response": null, "error": {"code": "...", "message": "..."}}
+    """
+    try:
+        errors = batch_service.retrieve_results(error_file_id)
+        batch_type = batch_req.batch_metadata.get("type")
+
+        for error_entry in errors:
+            custom_id = error_entry.get("custom_id")
+            if not custom_id:
+                continue
+
+            error_msg = error_entry.get("error", {}).get("message", "Unknown error")
+            logger.warning(f"Batch error for {custom_id}: {error_msg}")
+
+            # Mark item as failed based on type
+            if batch_type == "embedding":
+                if custom_id.startswith("cv-"):
+                    cv_id = int(custom_id.replace("cv-", ""))
+                    cv = session.get(CV, cv_id)
+                    if cv:
+                        cv.embedding_status = "failed"
+                        session.add(cv)
+
+                elif custom_id.startswith("job-"):
+                    job_id = int(custom_id.replace("job-", ""))
+                    job = session.get(Job, job_id)
+                    if job:
+                        job.embedding_status = "failed"
+                        session.add(job)
+
+            elif batch_type == "cv_parsing":
+                if custom_id.startswith("cv-parse-"):
+                    cv_id = int(custom_id.replace("cv-parse-", ""))
+                    cv = session.get(CV, cv_id)
+                    if cv:
+                        cv.parsing_status = "failed"
+                        session.add(cv)
+
+        logger.info(f"Processed {len(errors)} errors from batch {batch_req.batch_api_id}")
+
+    except Exception as e:
+        logger.error(f"Failed to process error file: {e}")
+
+
 # Commented out to prevent auto-execution during development
 # for both CVs and Jobs status polling!
 # @celery_app.task
 def check_batch_status_task():
     """
     Checks status of active batch jobs and processes results.
+
+    SCALABILITY: Limits number of batches checked per run to prevent overload.
     """
     from core.db.engine import engine
     from core.db.models import BatchRequest, CV, Job
     from core.services.batch_service import BatchService
-    
+
     logger = celery_app.log.get_default_logger()
     batch_service = BatchService()
-    
+
     if not batch_service.client:
         return
-        
+
     try:
         with Session(engine) as session:
-            # Find active batches
+            # SCALABILITY: Limit number of batches to check per run
+            # Process oldest first (FIFO), limit to 50 to prevent API rate limits and timeouts
             active_statuses = ["validating", "in_progress", "finalizing"]
-            batches = session.exec(select(BatchRequest).where(BatchRequest.status.in_(active_statuses))).all()
+            batches = session.exec(
+                select(BatchRequest)
+                .where(BatchRequest.status.in_(active_statuses))
+                .order_by(BatchRequest.created_at)  # Oldest first
+                .limit(50)  # Prevent checking too many at once
+            ).all()
+
+            if not batches:
+                logger.info("No active batches to check")
+                return "No active batches"
+
+            logger.info(f"Checking status of {len(batches)} active batches")
             
             for batch_req in batches:
                 # Check status
@@ -469,12 +541,67 @@ def check_batch_status_task():
                     batch_req.completed_at = datetime.utcnow()
                     batch_req.status = remote_batch.status
                     batch_req.output_file_id = remote_batch.output_file_id
-                    
+
+                    # HANDLE ERROR FILE: Process failed requests within successful batch
+                    if remote_batch.error_file_id:
+                        logger.warning(f"Batch {batch_req.batch_api_id} has errors. Processing error file...")
+                        _handle_batch_errors(batch_req, remote_batch.error_file_id, session, batch_service)
+
                 elif remote_batch.status in ["failed", "expired", "cancelled"]:
                     batch_req.completed_at = datetime.utcnow()
                     batch_req.status = remote_batch.status
-                    # TODO: Handle failed items
-                    # it depends...
+
+                    # Mark all items in this batch as failed for data analyst review
+                    logger.error(f"Batch {batch_req.batch_api_id} {remote_batch.status}. Marking items as failed.")
+
+                    # Based on batch type, mark items as failed
+                    batch_type = batch_req.batch_metadata.get("type")
+
+                    if batch_type == "embedding":
+                        # Read input file to get all CV/Job IDs
+                        if batch_req.input_file_id:
+                            try:
+                                file_content = batch_service.retrieve_results(batch_req.input_file_id)
+                                for line in file_content:
+                                    custom_id = line.get("custom_id")
+                                    if not custom_id:
+                                        continue
+
+                                    if custom_id.startswith("cv-"):
+                                        cv_id = int(custom_id.replace("cv-", ""))
+                                        cv = session.get(CV, cv_id)
+                                        if cv:
+                                            cv.embedding_status = "failed"
+                                            session.add(cv)
+
+                                    elif custom_id.startswith("job-"):
+                                        job_id = int(custom_id.replace("job-", ""))
+                                        job = session.get(Job, job_id)
+                                        if job:
+                                            job.embedding_status = "failed"
+                                            session.add(job)
+                            except Exception as e:
+                                logger.error(f"Failed to process failed batch items: {e}")
+
+                    elif batch_type == "cv_parsing":
+                        # Mark CVs as failed for manual review
+                        # Parse custom_ids from input file
+                        try:
+                            file_content = batch_service.retrieve_results(batch_req.input_file_id)
+                            for line in file_content:
+                                custom_id = line.get("custom_id")
+                                if custom_id and custom_id.startswith("cv-parse-"):
+                                    cv_id = int(custom_id.replace("cv-parse-", ""))
+                                    cv = session.get(CV, cv_id)
+                                    if cv:
+                                        cv.parsing_status = "failed"
+                                        session.add(cv)
+                        except Exception as e:
+                            logger.error(f"Failed to mark CVs as failed: {e}")
+
+                    # Note: For failed/cancelled/expired batches, items are marked as "failed"
+                    # and require manual review by data analysts. They are NOT retried automatically.
+
                 session.add(batch_req)
                 session.commit()
                 
