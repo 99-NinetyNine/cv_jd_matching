@@ -23,6 +23,9 @@ class CV(SQLModel, table=True):
     # Batch processing metadata
     batch_id: Optional[str] = None  # Links to batch job if processed in batch
 
+    # Optimized fields for retrieval (like Job model)
+    canonical_text: Optional[str] = None  # Pre-computed text representation
+
 class Job(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     job_id: str = Field(unique=True)
