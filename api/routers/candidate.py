@@ -14,7 +14,7 @@ from sqlmodel import Session, select
 from pydantic import BaseModel
 from typing import Optional, Literal
 from core.db.engine import get_session
-from core.db.models import Job, CV, ParsingCorrection, UserInteraction, Prediction
+from core.db.models import Job, CV, ParsingCorrection, UserInteraction, Prediction, User
 from core.matching.semantic_matcher import HybridMatcher
 from core.cache.redis_cache import redis_client
 from core.monitoring.metrics import log_metric
@@ -24,6 +24,7 @@ from core.services.cv_service import (
     compute_cv_embedding,
     update_cv_with_corrections,
 )
+from api.routers.auth import get_current_user
 import numpy as np
 import logging
 
@@ -42,7 +43,44 @@ async def upload_cv(
         "upload", "parse", "analyze"
     ] = "upload",  # only these values allowed
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    """
+    Upload and process a candidate's CV with multiple action modes.
+    
+    This endpoint handles CV upload with three processing levels:
+    - **upload**: Only saves the file and creates a CV record
+    - **parse**: Uploads and parses the CV to extract structured data
+    - **analyze**: Full processing including parsing and job matching
+    
+    Args:
+        file: PDF file upload (max 5MB)
+        action: Processing level - "upload", "parse", or "analyze"
+        session: Database session (injected)
+        current_user: Authenticated user (injected)
+    
+    Returns:
+        dict: Response varies by action:
+            - upload: cv_id, filename, path
+            - parse: cv_id, filename, path, parsed data
+            - analyze: complete matching results with recommendations
+    
+    Raises:
+        HTTPException: 400 if file is not PDF or exceeds size limit
+        HTTPException: 401 if user is not authenticated
+    
+    Example:
+        ```python
+        # Upload only
+        POST /candidate/upload?action=upload
+        
+        # Parse CV
+        POST /candidate/upload?action=parse
+        
+        # Full analysis with job matching
+        POST /candidate/upload?action=analyze
+        ```
+    """
     # Validation
     if file.content_type != "application/pdf":
         # though we can expect user to upload docs and convert it into pdf
@@ -69,13 +107,14 @@ async def upload_cv(
     with open(file_path, "wb") as buffer:
         buffer.write(content)
 
-    # 2 Create CV record
+    # 2 Create CV record with owner_id
     cv = CV(
         filename=filename,
         content={},
         embedding_status="pending",
         parsing_status="pending",
         is_latest=True,
+        owner_id=current_user.id,  # Link CV to authenticated user
     )
     session.add(cv)
     session.commit()
@@ -324,14 +363,44 @@ async def websocket_endpoint(
 
 
 @router.get("/recommendations")
-async def get_recommendations(session: Session = Depends(get_session)):
+async def get_recommendations(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """
-    Get job recommendations for the user's latest CV.
-    Uses cached results if available, otherwise computes new matches.
+    Get job recommendations for the authenticated user's latest CV.
+    
+    This endpoint retrieves personalized job recommendations based on the user's
+    most recent CV. It uses a multi-tier caching strategy for optimal performance:
+    1. Redis cache for fast retrieval
+    2. Database predictions for persistence
+    3. Real-time computation as fallback
+    
+    Args:
+        session: Database session (injected)
+        current_user: Authenticated user (injected)
+    
+    Returns:
+        dict: Contains:
+            - candidate_id: CV identifier
+            - candidate_name: Extracted from CV
+            - recommendations: List of matched jobs with scores
+            - prediction_id: Unique identifier for this recommendation set
+            - count: Number of recommendations
+    
+    Raises:
+        HTTPException: 404 if no CV found for user
+        HTTPException: 400 if CV not yet parsed
+        HTTPException: 401 if user not authenticated
+    
+    Note:
+        Only returns recommendations for CVs owned by the authenticated user.
+        Requires CV embedding_status to be "completed".
     """
-    # 1. Find the latest CV (using is_latest flag)
+    # 1. Find the latest CV for the authenticated user
     cv = session.exec(
         select(CV)
+        .where(CV.owner_id == current_user.id)  # Filter by owner
         .where(CV.is_latest == True)
         .where(CV.embedding_status == "completed")
         .order_by(CV.created_at.desc())

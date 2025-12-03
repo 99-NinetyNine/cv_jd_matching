@@ -11,7 +11,8 @@ from datetime import datetime
 import logging
 
 from core.db.engine import get_session
-from core.db.models import UserInteraction, Application
+from core.db.models import UserInteraction, Application, User
+from api.routers.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -40,19 +41,67 @@ class InteractionCreate(BaseModel):
 @router.post("/log")
 async def log_interaction(
     interaction: InteractionCreate,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Unified interaction logging endpoint.
+    Unified interaction logging endpoint for both candidates and hirers.
 
-    **Candidate actions**: viewed, saved, applied
-    **Hirer actions**: shortlisted, interviewed, hired, rejected
+    This endpoint tracks all user interactions with jobs and applications,
+    enabling recommendation quality tracking, engagement analytics, and
+    application lifecycle management.
+    
+    **Candidate actions**: 
+    - `viewed`: Candidate viewed a job recommendation
+    - `saved`: Candidate bookmarked a job for later
+    - `applied`: Candidate submitted an application
+    
+    **Hirer actions**: 
+    - `shortlisted`: Hirer marked candidate for further review
+    - `interviewed`: Hirer scheduled/completed interview
+    - `hired`: Hirer accepted the candidate
+    - `rejected`: Hirer rejected the application
 
-    This tracks:
-    - Recommendation quality (CTR, conversion)
-    - User engagement patterns
-    - Application lifecycle
-    - Model performance evaluation
+    Args:
+        interaction: Interaction data including user_id, job_id, action, etc.
+        session: Database session (injected)
+        current_user: Authenticated user (injected)
+    
+    Returns:
+        dict: Contains status, message, and application_id (if applicable)
+    
+    Raises:
+        HTTPException: 400 if invalid action for user type
+        HTTPException: 401 if user not authenticated
+        HTTPException: 500 if logging fails
+    
+    Note:
+        - Automatically creates Application records for 'applied' actions
+        - Updates Application status for hirer actions
+        - Tracks prediction_id for recommendation quality metrics
+    
+    Example:
+        ```python
+        # Candidate views a job
+        POST /interactions/log
+        {
+            "user_id": "cv_123",
+            "user_type": "candidate",
+            "job_id": "job_456",
+            "action": "viewed",
+            "prediction_id": "pred_789"
+        }
+        
+        # Hirer shortlists a candidate
+        POST /interactions/log
+        {
+            "user_id": "hirer_123",
+            "user_type": "hirer",
+            "job_id": "job_456",
+            "action": "shortlisted",
+            "application_id": 42
+        }
+        ```
     """
 
     # Validate action based on user type
@@ -176,18 +225,49 @@ async def log_interaction(
 @router.get("/stats/{user_id}")
 async def get_user_interaction_stats(
     user_id: str,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Get interaction statistics for a user.
-    Useful for analytics and user insights.
+    Get interaction statistics for a specific user.
+    
+    Provides comprehensive analytics on user engagement patterns,
+    including action breakdowns and recent activity history.
+    
+    Args:
+        user_id: User identifier (can be CV ID or user email/ID)
+        session: Database session (injected)
+        current_user: Authenticated user (injected)
+    
+    Returns:
+        dict: Contains:
+            - user_id: The queried user ID
+            - total_interactions: Total number of interactions
+            - actions: Dictionary of action counts
+            - recent_interactions: Last 10 interactions with details
+    
+    Raises:
+        HTTPException: 401 if user not authenticated
+        HTTPException: 403 if user tries to access others' stats (non-admin)
+    
+    Note:
+        Users can only view their own stats unless they are admin.
     """
     from sqlmodel import select, func
 
+    # Authorization check - users can only view their own stats unless admin
     try:
         user_id_int = int(user_id)
     except ValueError:
         user_id_int = hash(user_id) % (10 ** 8)
+    
+    # Check if user is requesting their own stats or is admin
+    current_user_id_int = current_user.id
+    if user_id_int != current_user_id_int and not current_user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to view other users' statistics"
+        )
 
     # Get all interactions for this user
     interactions = session.exec(
@@ -225,13 +305,50 @@ async def get_user_interaction_stats(
 @router.get("/job/{job_id}/stats")
 async def get_job_interaction_stats(
     job_id: str,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Get interaction statistics for a specific job.
-    Useful for hirers to see engagement metrics.
+    Get interaction statistics for a specific job posting.
+    
+    Provides engagement metrics for hirers to understand how candidates
+    are interacting with their job postings.
+    
+    Args:
+        job_id: Job identifier
+        session: Database session (injected)
+        current_user: Authenticated user (injected)
+    
+    Returns:
+        dict: Contains:
+            - job_id: The queried job ID
+            - total_interactions: Total interaction count
+            - actions: Breakdown by action type
+            - engagement_rate: Percentage of views that led to applications
+            - unique_users: Number of unique candidates who interacted
+    
+    Raises:
+        HTTPException: 401 if user not authenticated
+        HTTPException: 403 if user doesn't own the job (non-admin)
+        HTTPException: 404 if job not found
+    
+    Note:
+        Only job owner or admin can view job statistics.
     """
     from sqlmodel import select
+    from core.db.models import Job
+    
+    # Verify job exists and check authorization
+    job = session.exec(select(Job).where(Job.job_id == job_id)).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Authorization check - only owner or admin can view stats
+    if job.owner_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to view statistics for this job"
+        )
 
     interactions = session.exec(
         select(UserInteraction).where(UserInteraction.job_id == job_id)
