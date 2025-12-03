@@ -17,9 +17,28 @@ from sqlmodel import Session, select
 logger = logging.getLogger(__name__)
 
 class BatchService:
-    def __init__(self, api_key: str = None):
-        if OpenAI:
+    def __init__(self, api_key: str = None, use_mock: bool = None):
+        """
+        Initialize BatchService.
+
+        Args:
+            api_key: OpenAI API key
+            use_mock: Force mock mode (if None, auto-detect from env/testing)
+        """
+        # Auto-detect mock mode from environment or testing context
+        if use_mock is None:
+            use_mock = os.getenv("USE_MOCK_BATCH", "false").lower() == "true"
+            # Also enable mock if OPENAI_API_KEY is not set (for testing)
+            if not os.getenv("OPENAI_API_KEY"):
+                use_mock = True
+
+        if use_mock:
+            from core.services.mock_batch_service import MockOpenAIClient
+            self.client = MockOpenAIClient()
+            logger.info("BatchService initialized with MockOpenAIClient")
+        elif OpenAI:
             self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+            logger.info("BatchService initialized with real OpenAI client")
         else:
             self.client = None
             logger.warning("OpenAI library not installed. BatchService will fail if used.")
