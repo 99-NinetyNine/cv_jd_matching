@@ -1,0 +1,57 @@
+{
+  "job_id": "830294141634837",
+  "title": "Market Analyst",
+  "company": "Mindtree Limited",
+  "description": "Competitive Intelligence Analysts gather data on competitors and industry trends. They analyze information to help businesses make informed decisions and gain a competitive edge.",
+  "type": "Full-Time",
+  "date": "2022-03-07",
+  "location": {
+    "city": "Lilongwe",
+    "countryCode": "Malawi",
+    "latitude": -13.2543,
+    "longitude": 34.3015
+  },
+  "salary": "$65K-$103K",
+  "experience": "3 to 11 Years",
+  "responsibilities": [
+    "Research competitors and industry trends to assess market positioning. Analyze competitors strategies and product offerings. Provide recommendations for competitive advantage."
+  ],
+  "qualifications": [
+    "M.Tech"
+  ],
+  "skills": [
+    {
+      "name": "Competitive analysis Market research Data analysis Business strategy Industry knowledge",
+      "level": null,
+      "keywords": []
+    }
+  ],
+  "role": "Competitive Intelligence Analyst",
+  "salary_range": "$65K-$103K",
+  "benefits": [
+    "Legal Assistance",
+    "Bonuses and Incentive Programs",
+    "Wellness Programs",
+    "Employee Discounts",
+    "Retirement Plans"
+  ],
+  "company_size": 105731,
+  "job_posting_date": "2022-03-07",
+  "preference": "Both",
+  "contact_person": "Austin Smith",
+  "contact": "7886954880",
+  "job_portal": "ZipRecruiter",
+  "company_profile": {
+    "Sector": "Information Technology",
+    "Industry": "Information Technology Services",
+    "City": "Bengaluru",
+    "State": "Karnataka",
+    "Zip": "560029",
+    "Website": "https://www.mindtree.com/",
+    "Ticker": "MINDTREE",
+    "CEO": "Debashis Chatterjee"
+  },
+  "country": "Malawi",
+  "latitude": -13.2543,
+  "longitude": 34.3015
+}

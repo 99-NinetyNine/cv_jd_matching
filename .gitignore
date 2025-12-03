@@ -4,9 +4,17 @@
 .LSOverride
 Thumbs.db
 ehthumbs.db
+*.
+celerybeat-schedule
 *.log
+*.pot
+*.pyc
 
-
+#
+latex/
+!!latex/report.tex
+!!latex/bibliography.bib
+!!latex/tasks
 # Python
 __pycache__/
 *.py[cod]

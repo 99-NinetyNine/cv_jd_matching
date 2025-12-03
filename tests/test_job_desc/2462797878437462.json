@@ -1,0 +1,57 @@
+{
+  "job_id": "2462797878437462",
+  "title": "Customer Service Representative",
+  "company": "Bristol-Myers Squibb",
+  "description": "A Live Chat Support Agent provides customer support through live chat channels, addressing inquiries, troubleshooting issues, and offering timely solutions.",
+  "type": "Temporary",
+  "date": "2023-06-12",
+  "location": {
+    "city": "Port of Spain",
+    "countryCode": "Trinidad and Tobago",
+    "latitude": 10.6918,
+    "longitude": -61.2225
+  },
+  "salary": "$55K-$114K",
+  "experience": "0 to 14 Years",
+  "responsibilities": [
+    "Offer real-time customer support through live chat or messaging platforms. Respond to customer inquiries promptly and accurately. Multitask and manage chat queues."
+  ],
+  "qualifications": [
+    "B.Tech"
+  ],
+  "skills": [
+    {
+      "name": "Live chat support Online customer communication Problem resolution",
+      "level": null,
+      "keywords": []
+    }
+  ],
+  "role": "Live Chat Support Agent",
+  "salary_range": "$55K-$114K",
+  "benefits": [
+    "Flexible Spending Accounts (FSAs)",
+    "Relocation Assistance",
+    "Legal Assistance",
+    "Employee Recognition Programs",
+    "Financial Counseling"
+  ],
+  "company_size": 24251,
+  "job_posting_date": "2023-06-12",
+  "preference": "Both",
+  "contact_person": "Janice Austin",
+  "contact": "308-716-3401x377",
+  "job_portal": "FlexJobs",
+  "company_profile": {
+    "Sector": "Healthcare",
+    "Industry": "Pharmaceuticals",
+    "City": "New York",
+    "State": "New York",
+    "Zip": "10016",
+    "Website": "www.bms.com",
+    "Ticker": "BMY",
+    "CEO": "Giovanni Caforio"
+  },
+  "country": "Trinidad and Tobago",
+  "latitude": 10.6918,
+  "longitude": -61.2225
+}

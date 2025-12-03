@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from typing import Optional, Literal
 from core.db.engine import get_session
 from core.db.models import Job, CV, ParsingCorrection, UserInteraction, Prediction, User
-from core.matching.semantic_matcher import HybridMatcher
+from core.matching.semantic_matcher import GraphMatcher
 from core.cache.redis_cache import redis_client
 from core.monitoring.metrics import log_metric
 from core.matching.embeddings import EmbeddingFactory
@@ -40,7 +40,7 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 async def upload_cv(
     file: UploadFile = File(...),
     action: Literal[
-        "upload", "parse", "analyze"
+        "upload", "parse", "match"
     ] = "upload",  # only these values allowed
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -51,11 +51,11 @@ async def upload_cv(
     This endpoint handles CV upload with three processing levels:
     - **upload**: Only saves the file and creates a CV record
     - **parse**: Uploads and parses the CV to extract structured data
-    - **analyze**: Full processing including parsing and job matching
+    - **match**: Full processing including parsing and job matching
     
     Args:
         file: PDF file upload (max 5MB)
-        action: Processing level - "upload", "parse", or "analyze"
+        action: Processing level - "upload", "parse", or "match"
         session: Database session (injected)
         current_user: Authenticated user (injected)
     
@@ -63,7 +63,7 @@ async def upload_cv(
         dict: Response varies by action:
             - upload: cv_id, filename, path
             - parse: cv_id, filename, path, parsed data
-            - analyze: complete matching results with recommendations
+            - match: complete matching results with recommendations
     
     Raises:
         HTTPException: 400 if file is not PDF or exceeds size limit
@@ -78,7 +78,7 @@ async def upload_cv(
         POST /candidate/upload?action=parse
         
         # Full analysis with job matching
-        POST /candidate/upload?action=analyze
+        POST /candidate/upload?action=match
         ```
     """
     # Validation
@@ -146,8 +146,8 @@ async def upload_cv(
         if not cv or not cv.content:
             return {"status": "error", "message": "CV not found"}
 
-        # Match using HybridMatcher
-        matcher = HybridMatcher(strategy=strategy)
+        # Match using GraphMatcher
+        matcher = GraphMatcher(strategy=strategy)
         matches = matcher.match(cv_data=data)
 
         # Cache results
@@ -253,10 +253,10 @@ async def websocket_endpoint(
             if user:
                 is_premium = user.is_premium
 
-        # TODO: not cv last updated but the cv's owner last cv analyzed date
+        # TODO: not cv last updated but the cv's owner last cv matchd date
         needs_update = True
         if is_premium is False:
-            last_updated = user.last_cv_analyzed
+            last_updated = user.last_cv_matchd
             if last_updated:
                 delta = datetime.datetime.utcnow() - last_updated
                 if delta.days < 30:
@@ -289,8 +289,8 @@ async def websocket_endpoint(
                     )
                     return
 
-                # Match using HybridMatcher
-                matcher = HybridMatcher(strategy=strategy)
+                # Match using GraphMatcher
+                matcher = GraphMatcher(strategy=strategy)
                 matches = matcher.match(cv_id=cv_id)
 
                 # Cache results

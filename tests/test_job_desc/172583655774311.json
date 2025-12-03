@@ -1,0 +1,64 @@
+{
+  "job_id": "172583655774311",
+  "title": "Network Engineer",
+  "company": "ON Semiconductor",
+  "description": "Network Administrators manage an organizations computer networks. They configure, monitor, and maintain network infrastructure, ensuring optimal performance and security.",
+  "type": "Intern",
+  "date": "2022-03-03",
+  "location": {
+    "city": "Pretoria",
+    "countryCode": "South Africa",
+    "latitude": -30.5595,
+    "longitude": 22.9375
+  },
+  "salary": "$58K-$83K",
+  "experience": "2 to 15 Years",
+  "responsibilities": [
+    "Manage and maintain computer networks",
+    "troubleshoot network issues",
+    "and ensure network availability and performance. Implement network security measures and policies. Monitor network traffic and optimize performance."
+  ],
+  "qualifications": [
+    "BBA"
+  ],
+  "skills": [
+    {
+      "name": "Network management Troubleshooting Network security IT certifications (e.g.",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "CCNA)",
+      "level": null,
+      "keywords": []
+    }
+  ],
+  "role": "Network Administrator",
+  "salary_range": "$58K-$83K",
+  "benefits": [
+    "Employee Assistance Programs (EAP)",
+    "Tuition Reimbursement",
+    "Profit-Sharing",
+    "Transportation Benefits",
+    "Parental Leave"
+  ],
+  "company_size": 133409,
+  "job_posting_date": "2022-03-03",
+  "preference": "Female",
+  "contact_person": "Felicia Bradford",
+  "contact": "4886185700",
+  "job_portal": "Indeed",
+  "company_profile": {
+    "Sector": "Technology",
+    "Industry": "Semiconductors and Other Electronic Components",
+    "City": "Scottsdale",
+    "State": "Arizona",
+    "Zip": "85250",
+    "Website": "www.onsemi.com",
+    "Ticker": "ON",
+    "CEO": "Hassane El-Khoury"
+  },
+  "country": "South Africa",
+  "latitude": -30.5595,
+  "longitude": 22.9375
+}

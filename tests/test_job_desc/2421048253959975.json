@@ -1,0 +1,57 @@
+{
+  "job_id": "2421048253959975",
+  "title": "Architectural Designer",
+  "company": "Asian Paints",
+  "description": "Architectural Drafters assist architects and engineers in creating detailed technical drawings and plans for buildings and structures. They use computer-aided design (CAD) software to produce accurate and precise architectural drawings.",
+  "type": "Part-Time",
+  "date": "2021-11-08",
+  "location": {
+    "city": "Tunis",
+    "countryCode": "Tunisia",
+    "latitude": 33.8869,
+    "longitude": 9.5375
+  },
+  "salary": "$61K-$108K",
+  "experience": "0 to 12 Years",
+  "responsibilities": [
+    "Prepare detailed architectural drawings and plans using computer-aided design (CAD) software. Assist architects in project documentation and coordination. Ensure compliance with building codes and regulations."
+  ],
+  "qualifications": [
+    "MBA"
+  ],
+  "skills": [
+    {
+      "name": "Architectural drafting AutoCAD 2D and 3D modeling Blueprint reading Building codes Collaboration with architects Detail-oriented",
+      "level": null,
+      "keywords": []
+    }
+  ],
+  "role": "Architectural Drafter",
+  "salary_range": "$61K-$108K",
+  "benefits": [
+    "Employee Assistance Programs (EAP)",
+    "Tuition Reimbursement",
+    "Profit-Sharing",
+    "Transportation Benefits",
+    "Parental Leave"
+  ],
+  "company_size": 18411,
+  "job_posting_date": "2021-11-08",
+  "preference": "Male",
+  "contact_person": "Holly Thompson",
+  "contact": "579.442.3566",
+  "job_portal": "Idealist",
+  "company_profile": {
+    "Sector": "Consumer Goods",
+    "Industry": "Paints and Coatings",
+    "City": "Mumbai",
+    "State": "Maharashtra",
+    "Zip": "400093",
+    "Website": "www.asianpaints.com",
+    "Ticker": "ASIANPAINT",
+    "CEO": "Amit Syngle"
+  },
+  "country": "Tunisia",
+  "latitude": 33.8869,
+  "longitude": 9.5375
+}

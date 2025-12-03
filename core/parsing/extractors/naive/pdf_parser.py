@@ -1,6 +1,6 @@
 from typing import Dict, Any, Union, Optional
 from pathlib import Path
-from langchain_community.document_loaders import PyMuPDFLoader, UnstructuredPDFLoader
+from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.exceptions import OutputParserException
@@ -92,9 +92,13 @@ class PDFParser(BaseParser):
             
         # 4. Fallback: Unstructured
         try:
+            from langchain_community.document_loaders import UnstructuredPDFLoader
             loader = UnstructuredPDFLoader(file_path)
             docs = loader.load()
             return "\n".join([doc.page_content for doc in docs])
+        except ImportError:
+            logger.warning("UnstructuredPDFLoader not available (unstructured package not installed). Skipping fallback.")
+            raise ValueError("All extraction methods failed (and unstructured not installed).")
         except Exception as e:
             raise ValueError(f"All extraction methods failed for {file_path}: {e}")
 
@@ -102,7 +106,7 @@ class PDFParser(BaseParser):
         """Validate extracted content."""
         if len(text) < 50:
             raise ValueError("Extracted text is too short.")
-        if len(text) > 100000:
+        if len(text) > 5000:
             raise ValueError("Extracted text is too long.")
             
         try:

@@ -1,5 +1,5 @@
 from core.worker.celery_app import celery_app
-from core.matching.semantic_matcher import HybridMatcher
+from core.matching.semantic_matcher import GraphMatcher
 from core.db.engine import get_session
 from core.db.models import Job, CV, Prediction
 from sqlmodel import select, Session
@@ -24,6 +24,21 @@ def test_celery_task(message: str = "Hello from Celery!"):
     return {
         "status": "success",
         "message": message,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+# TEST BEAT TASK - To verify Celery Beat is working
+@celery_app.task
+def test_beat_task():
+    """
+    Periodic test task to verify Celery Beat scheduler is running.
+    This runs automatically every 2 minutes via beat_schedule.
+    """
+    logger.info("TEST BEAT TASK EXECUTED - Celery Beat is working!")
+    return {
+        "status": "success",
+        "message": "Beat scheduler is running",
         "timestamp": datetime.utcnow().isoformat()
     }
 
@@ -95,72 +110,6 @@ def process_batch_cv_parsing():
         logger.error(f"Batch parsing task failed: {e}")
         return f"Error: {str(e)}"
 
-
-# Commented out to prevent auto-execution during development
-# @celery_app.task
-def perform_batch_matches():
-    """
-    Periodically check for CVs that need fresh matches and process them in batch.
-
-    SCALABILITY: Uses dynamic batch sizing to prevent memory exhaustion.
-
-    Uses BatchMatcher class for optimized batch matching:
-    - Parameterized pgvector queries
-    - Pre-computed canonical text
-    - Bulk database operations
-    - Batch explanation generation
-    - Dynamic batch sizing based on queue depth and system resources
-
-    Flow:
-    1. Count pending CVs and calculate optimal batch size
-    2. Find CVs with no predictions or old predictions (> 6 hours) - LIMIT to batch size
-    3. Perform batch vector search using CROSS JOIN LATERAL
-    4. Save predictions in bulk (without explanations)
-    5. Queue explanations for batch processing
-    """
-    from core.db.engine import engine
-    from core.matching.batch_matcher import BatchMatcher
-    from sqlalchemy import func
-
-    logger = celery_app.log.get_default_logger()
-
-    try:
-        with Session(engine) as session:
-            # SCALABILITY: Count pending CVs first
-            from datetime import timedelta
-            cutoff_time = datetime.utcnow() - timedelta(hours=6)
-
-            pending_count = session.exec(
-                select(func.count(CV.id)).where(
-                    CV.embedding_status == "completed",
-                    CV.is_latest == True,
-                    (CV.last_analyzed == None) | (CV.last_analyzed < cutoff_time)
-                )
-            ).one()
-
-            if pending_count == 0:
-                logger.info("No CVs need matching")
-                return "No CVs need matching"
-
-            # SCALABILITY: Calculate dynamic batch size
-            from core.parsing.batch_sizing import get_batch_size_for_task
-            batch_size = get_batch_size_for_task(pending_count, "matching")
-
-            logger.info(f"Dynamic batch size: {batch_size} (total pending: {pending_count})")
-
-            # Process batch with limit
-            batch_matcher = BatchMatcher()
-            result = batch_matcher.process_batch_matches(
-                session=session,
-                cutoff_hours=6,
-                top_k=10,
-                batch_size=batch_size  # Pass dynamic batch size
-            )
-            return result
-
-    except Exception as e:
-        logger.error(f"Batch matching failed: {e}")
-        return str(e)
 
 
 # Commented out to prevent auto-execution during development
@@ -342,6 +291,73 @@ def submit_batch_job_embeddings_task():
             
     except Exception as e:
         logger.error(f"Job batch submission failed: {e}")
+        return str(e)
+
+
+# Commented out to prevent auto-execution during development
+# @celery_app.task
+def perform_batch_matches():
+    """
+    Periodically check for CVs that need fresh matches and process them in batch.
+
+    SCALABILITY: Uses dynamic batch sizing to prevent memory exhaustion.
+
+    Uses BatchMatcher class for optimized batch matching:
+    - Parameterized pgvector queries
+    - Pre-computed canonical text
+    - Bulk database operations
+    - Batch explanation generation
+    - Dynamic batch sizing based on queue depth and system resources
+
+    Flow:
+    1. Count pending CVs and calculate optimal batch size
+    2. Find CVs with no predictions or old predictions (> 6 hours) - LIMIT to batch size
+    3. Perform batch vector search using CROSS JOIN LATERAL
+    4. Save predictions in bulk (without explanations)
+    5. Queue explanations for batch processing
+    """
+    from core.db.engine import engine
+    from core.matching.batch_matcher import BatchMatcher
+    from sqlalchemy import func
+
+    logger = celery_app.log.get_default_logger()
+
+    try:
+        with Session(engine) as session:
+            # SCALABILITY: Count pending CVs first
+            from datetime import timedelta
+            cutoff_time = datetime.utcnow() - timedelta(hours=6)
+
+            pending_count = session.exec(
+                select(func.count(CV.id)).where(
+                    CV.embedding_status == "completed",
+                    CV.is_latest == True,
+                    (CV.last_analyzed == None) | (CV.last_analyzed < cutoff_time)
+                )
+            ).one()
+
+            if pending_count == 0:
+                logger.info("No CVs need matching")
+                return "No CVs need matching"
+
+            # SCALABILITY: Calculate dynamic batch size
+            from core.parsing.batch_sizing import get_batch_size_for_task
+            batch_size = get_batch_size_for_task(pending_count, "matching")
+
+            logger.info(f"Dynamic batch size: {batch_size} (total pending: {pending_count})")
+
+            # Process batch with limit
+            batch_matcher = BatchMatcher()
+            result = batch_matcher.process_batch_matches(
+                session=session,
+                cutoff_hours=6,
+                top_k=10,
+                batch_size=batch_size  # Pass dynamic batch size
+            )
+            return result
+
+    except Exception as e:
+        logger.error(f"Batch matching failed: {e}")
         return str(e)
 
 def _handle_batch_errors(batch_req, error_file_id, session, batch_service):

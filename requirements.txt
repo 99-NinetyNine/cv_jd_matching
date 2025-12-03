@@ -8,24 +8,19 @@ langchain-ollama
 langchain-openai
 langchain-google-genai
 pydantic
-pypdf
 psycopg2-binary
 pgvector
 sqlalchemy
 sqlmodel
-pandas
 numpy
 scikit-learn
 python-multipart
 python-dotenv
-unstructured
 pdf2image
-pdfminer.six
+langdetect
 pymupdf
-# rank_bm25
-# sentence-transformers
 pytesseract
-pdf2image
+sentence-transformers
 Pillow
 redis
 celery

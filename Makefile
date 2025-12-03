@@ -31,32 +31,6 @@ k8s-down:
 	kubectl delete -f infra/k8s/
 	kubectl delete secret cv-secrets --ignore-not-found
 
-# Database Migration Commands
-migration:
-	@echo "📝 Creating new migration..."
-	@if [ -z "$(msg)" ]; then \
-		echo "Error: Please provide a message with msg='your message'"; \
-		echo "Example: make migration msg='add user preferences'"; \
-		exit 1; \
-	fi
-	./venv/bin/alembic revision --autogenerate -m "$(msg)"
-
-migrate:
-	@echo "⬆️  Applying migrations..."
-	./venv/bin/alembic upgrade head
-
-db-current:
-	@echo "📍 Current database version:"
-	./venv/bin/alembic current
-
-db-history:
-	@echo "📜 Migration history:"
-	./venv/bin/alembic history
-
-db-check:
-	@echo "🔍 Checking for schema drift..."
-	./venv/bin/python scripts/check_schema.py
-
 # Utility
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +

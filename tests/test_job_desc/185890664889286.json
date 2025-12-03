@@ -1,0 +1,64 @@
+{
+  "job_id": "185890664889286",
+  "title": "QA Analyst",
+  "company": "Community Health Systems",
+  "description": "Software QA Testers ensure the quality of software products by designing and executing test cases, identifying defects, and reporting issues to developers. They play a critical role in ensuring software reliability and functionality.",
+  "type": "Temporary",
+  "date": "2022-12-27",
+  "location": {
+    "city": "Seoul",
+    "countryCode": "North Korea",
+    "latitude": 40.3399,
+    "longitude": 127.5101
+  },
+  "salary": "$65K-$91K",
+  "experience": "3 to 15 Years",
+  "responsibilities": [
+    "Perform manual testing of software applications",
+    "identify defects",
+    "and report issues. Create and execute test cases and test plans. Collaborate with developers to resolve defects."
+  ],
+  "qualifications": [
+    "MBA"
+  ],
+  "skills": [
+    {
+      "name": "Software quality assurance Test planning Test case design Test execution Defect tracking Test automation (e.g.",
+      "level": null,
+      "keywords": []
+    },
+    {
+      "name": "Selenium)",
+      "level": null,
+      "keywords": []
+    }
+  ],
+  "role": "Software QA Tester",
+  "salary_range": "$65K-$91K",
+  "benefits": [
+    "Flexible Spending Accounts (FSAs)",
+    "Relocation Assistance",
+    "Legal Assistance",
+    "Employee Recognition Programs",
+    "Financial Counseling"
+  ],
+  "company_size": 44651,
+  "job_posting_date": "2022-12-27",
+  "preference": "Female",
+  "contact_person": "Elizabeth Lopez",
+  "contact": "384.623.2338x2229",
+  "job_portal": "USAJOBS",
+  "company_profile": {
+    "Sector": "Healthcare",
+    "Industry": "Health Care: Medical Facilities",
+    "City": "Franklin",
+    "State": "Tennessee",
+    "Zip": "37067",
+    "Website": "www.chs.net",
+    "Ticker": "CYH",
+    "CEO": "Tim L. Hingten"
+  },
+  "country": "North Korea",
+  "latitude": 40.3399,
+  "longitude": 127.5101
+}

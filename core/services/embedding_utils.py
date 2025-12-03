@@ -54,6 +54,7 @@ def normalize_embedding(
         ValueError: If embedding is invalid
     """
     if not embedding:
+        print(" error padding...")
         raise ValueError("Embedding cannot be empty")
     print("padding...")
     current_dim = len(embedding)
@@ -134,7 +135,6 @@ def validate_embedding(
             f"got {actual_dim}"
         )
         return False
-
     return True
 
 
@@ -165,8 +165,9 @@ def prepare_embedding_for_storage(
         >>> len(stored_emb)
         1536
     """
-    if not validate_embedding(embedding, provider, model) and auto_normalize:
+    if validate_embedding(embedding, provider, model) and auto_normalize:
         logger.info(f"Auto-normalizing {provider} embedding")
+        print("normlizzing..")
         return normalize_embedding(embedding, provider, model)
 
     return embedding
