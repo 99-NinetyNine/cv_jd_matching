@@ -37,6 +37,10 @@ env/
 .env
 .env.*
 
+# Mock Batch Files (for testing)
+.mock_batches/
+test_batch.db
+
 # IDEs
 .idea/
 .vscode/
