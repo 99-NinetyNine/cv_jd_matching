@@ -13,8 +13,6 @@ psycopg2-binary
 pgvector
 sqlalchemy
 sqlmodel
-jupyter
-notebook
 pandas
 numpy
 scikit-learn
@@ -24,8 +22,8 @@ unstructured
 pdf2image
 pdfminer.six
 pymupdf
-rank_bm25
-sentence-transformers
+# rank_bm25
+# sentence-transformers
 pytesseract
 pdf2image
 Pillow
@@ -34,5 +32,11 @@ celery
 passlib[argon2]
 argon2-cffi
 python-jose[cryptography]
-alembic
 tiktoken>=0.5.0
+
+# Testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+pytest-asyncio>=0.21.0
+httpx>=0.24.0
