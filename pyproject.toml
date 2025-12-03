@@ -1,0 +1,66 @@
+[tool.pytest.ini_options]
+# Pytest configuration for CV matching API tests
+
+# Test discovery patterns
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Test paths
+testpaths = ["tests"]
+
+# Minimum version
+minversion = "7.0"
+
+# Add current directory to Python path
+pythonpath = ["."]
+
+# Output options
+addopts = [
+    "-ra",                    # Show summary of all test outcomes
+    "--strict-markers",       # Treat unregistered markers as errors
+    "--strict-config",        # Treat config errors as errors
+    "--showlocals",          # Show local variables in tracebacks
+    "-v",                    # Verbose output
+    "--tb=short",            # Shorter traceback format
+    "--disable-warnings",    # Disable warnings (optional)
+]
+
+# Markers for categorizing tests
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "auth: marks tests related to authentication",
+    "candidate: marks tests for candidate endpoints",
+    "hirer: marks tests for hirer endpoints",
+    "interactions: marks tests for interaction endpoints",
+]
+
+# Coverage options (if using pytest-cov)
+[tool.coverage.run]
+source = ["api", "core"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
