@@ -9,7 +9,7 @@ celerybeat-schedule
 *.log
 *.pot
 *.pyc
-
+kind
 #
 latex/
 !!latex/report.tex
