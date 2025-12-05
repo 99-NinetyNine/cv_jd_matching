@@ -4,6 +4,7 @@ from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.exceptions import OutputParserException
+from core.configs import USE_REAL_LLM
 from core.parsing.extractors.base import BaseParser
 from core.parsing.schema import Resume
 from core.llm.factory import get_llm
@@ -137,34 +138,37 @@ class PDFParser(BaseParser):
         # }
         # return regex_data
 
-        # 3. LLM Extraction
-        prompt = PromptTemplate(
-            template="""You are an expert CV parser. Extract structured info from the CV.
-            
-            CV Text:
-            {cv_text}
-            
-            {format_instructions}
-            """,
-            input_variables=["cv_text"],
-        )
         ##############
-        # REMOVE THIS.
-        import json
-        with open("core/parsing/tests_data/resume_and_texts_kaggle/some/ADVOCATE_14445309.json", 'r') as f:
-            return json.load(f)
+        # REMOVE THIS
+        if USE_REAL_LLM is False:
+            print("test llm")
+            import json
+            with open("tests/test_resumes/INFORMATION-TECHNOLOGY_36856210.json", 'r') as f:
+            # with open("core/parsing/tests_data/resume_and_texts_kaggle/some/ADVOCATE_14445309.json", 'r') as f:
+                return json.load(f)
 
         ##########
-        llm_structured = self.llm.with_structured_output(Resume)
-        chain = prompt | llm_structured
-        
-
         try:
-            resume_data = chain.invoke({"cv_text": full_text})
-            parsed_dict = resume_data.model_dump(exclude_none=True)
+            prompt = PromptTemplate(
+                template="""You are an expert CV parser. Extract structured info from the CV.
+                
+                CV Text:
+                {cv_text}
+                
+                {format_instructions}
+                """,
+                input_variables=["cv_text", "format_instructions"],
+            )
 
-            # any additional processing can be done here     
-            # To comply to JSON Resume       
+            llm_structured = self.llm.with_structured_output(Resume)
+            chain = prompt | llm_structured
+
+            resume_data = chain.invoke({
+                "cv_text": full_text,
+                "format_instructions": llm_structured.output_schema.model_json_schema()  # OR llm_structured.get_format_instructions()
+            })
+
+            parsed_dict = resume_data.model_dump(exclude_none=True)
             return parsed_dict
 
 

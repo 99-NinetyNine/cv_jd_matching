@@ -327,6 +327,9 @@ Respond with valid JSON matching the schema above. Extract ALL relevant informat
                 cv.content = parsed_data
                 cv.canonical_text = canonical_text
                 cv.parsing_status = "completed"
+                # IMPORTANT, once cv parsed then only embedding parsed because only we have parsed cv we can have better
+                # embeddings
+                cv.embedding_status = "pending_batch"  # Next step
                 session.add(cv)
 
                 stats["successful"] += 1
