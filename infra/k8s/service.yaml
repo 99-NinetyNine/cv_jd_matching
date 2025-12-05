@@ -11,9 +11,10 @@ spec:
     component: api
   ports:
   - protocol: TCP
-    port: 80
+    port: 8000
     targetPort: 8000
-  type: LoadBalancer
+    nodePort: 30000
+  type: NodePort
 
 ---
 # HorizontalPodAutoscaler for API
@@ -28,8 +29,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: cv-matching-api
-  minReplicas: 3
-  maxReplicas: 10
+  minReplicas: 1
+  maxReplicas: 5
   metrics:
   - type: Resource
     resource:
@@ -57,8 +58,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: cv-matching-worker
-  minReplicas: 5
-  maxReplicas: 20
+  minReplicas: 1
+  maxReplicas: 10
   metrics:
   - type: Resource
     resource:

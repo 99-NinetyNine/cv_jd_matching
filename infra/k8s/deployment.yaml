@@ -7,7 +7,7 @@ metadata:
     app: cv-matching
     component: api
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: cv-matching
@@ -38,11 +38,11 @@ spec:
           value: "http://ollama-service:11434"
         resources:
           requests:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "256Mi"
+            cpu: "200m"
           limits:
-            memory: "2Gi"
-            cpu: "1000m"
+            memory: "512Mi"
+            cpu: "500m"
 
 ---
 # Celery Worker Deployment (reuses same image as API)
@@ -54,7 +54,7 @@ metadata:
     app: cv-matching
     component: worker
 spec:
-  replicas: 5
+  replicas: 1
   selector:
     matchLabels:
       app: cv-matching
@@ -84,11 +84,11 @@ spec:
           value: "http://ollama-service:11434"
         resources:
           requests:
-            memory: "2Gi"
-            cpu: "1000m"
+            memory: "512Mi"
+            cpu: "200m"
           limits:
-            memory: "4Gi"
-            cpu: "2000m"
+            memory: "1Gi"
+            cpu: "500m"
 
 ---
 # Celery Beat Deployment (reuses same image, only 1 replica)
@@ -128,11 +128,11 @@ spec:
           value: "6379"
         resources:
           requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
             memory: "256Mi"
             cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "200m"
 
 ---
 # Redis Deployment
@@ -162,11 +162,11 @@ spec:
         - containerPort: 6379
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "128Mi"
+            cpu: "100m"
           limits:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "256Mi"
+            cpu: "200m"
 
 ---
 # Redis Service
