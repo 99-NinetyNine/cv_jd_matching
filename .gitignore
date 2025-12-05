@@ -11,10 +11,12 @@ celerybeat-schedule
 *.pyc
 kind
 #
-latex/
-!!latex/report.tex
+latex_detail/
+
+latex
 !!latex/bibliography.bib
-!!latex/tasks
+!!latex/report.pdf
+# !!latex/tasks
 # Python
 __pycache__/
 *.py[cod]
@@ -43,7 +45,8 @@ venv/
 .venv/
 env/
 .env
-.env.*
+.env.prod
+# .env.*
 
 # Mock Batch Files (for testing)
 .mock_batches/

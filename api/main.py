@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from api.routers import auth, candidate, hirer, admin, interactions, advanced_candidate
+from api.routers import auth, candidate, hirer, admin, interactions, super_advanced
 import shutil
 import os
 import uuid
@@ -18,11 +18,11 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth.router)
-app.include_router(candidate.router)
+app.include_router(candidate.router)  # Legacy matching (keep for backward compat)
 app.include_router(hirer.router)
 app.include_router(interactions.router)
 app.include_router(admin.router)
-app.include_router(advanced_candidate.router)
+app.include_router(super_advanced.router)  # 🔥 THE ULTIMATE UNIFIED SYSTEM!
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)

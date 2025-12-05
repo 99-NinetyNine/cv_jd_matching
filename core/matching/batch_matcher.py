@@ -67,7 +67,7 @@ class BatchMatcher:
         self,
         session: Session,
         cv_ids: List[int],
-        top_k: int = 10
+        top_k: int = 2
     ) -> List[Any]:
         """
         Perform batch vector search using optimized pgvector query.

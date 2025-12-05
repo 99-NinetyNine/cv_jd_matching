@@ -1,2 +1,3 @@
 # USE_REAL_LLM = True #False
-USE_REAL_LLM = False
+import os
+USE_REAL_LLM = os.environ.get("USE_REAL_LLM") == "true"
