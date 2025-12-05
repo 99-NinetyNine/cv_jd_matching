@@ -82,9 +82,6 @@ CREATE INDEX IF NOT EXISTS idx_batchrequest_batch_type ON batchrequest (batch_ty
 -- ========================================
 
 -- System metrics
-CREATE INDEX IF NOT EXISTS idx_systemmetric_name ON systemmetric (name);
-CREATE INDEX IF NOT EXISTS idx_systemmetric_timestamp ON systemmetric (timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_systemmetric_name_timestamp ON systemmetric (name, timestamp DESC);
 
 -- ========================================
 -- COMPOSITE INDICES (for common queries)
