@@ -78,12 +78,6 @@ CREATE INDEX IF NOT EXISTS idx_batchrequest_status ON batchrequest (status);
 CREATE INDEX IF NOT EXISTS idx_batchrequest_batch_type ON batchrequest (batch_type);
 
 -- ========================================
--- SYSTEM METRICS INDICES
--- ========================================
-
--- System metrics
-
--- ========================================
 -- COMPOSITE INDICES (for common queries)
 -- ========================================
 
@@ -108,4 +102,3 @@ ANALYZE job;
 ANALYZE userinteraction;
 ANALYZE prediction;
 ANALYZE application;
-ANALYZE systemmetric;

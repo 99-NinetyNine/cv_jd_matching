@@ -30,8 +30,13 @@ $DOCKER_COMPOSE -f infra/docker-compose.yml up -d --build
 echo -e "${GREEN}⏳ Waiting for database...${NC}"
 sleep 10
 
-# Initialize database
-echo -e "${GREEN}🗄️  Initializing database...${NC}"
+# Running simple Migration using Python script in API container
+echo -e "${GREEN}🗄️  Creating database tables...${NC}"
+docker exec infra-api-1 python scripts/init_tables.py
+
+sleep 3
+# Initialize database with seed data
+echo -e "${GREEN}🌱 Seeding database...${NC}"
 docker exec -i infra-db-1 psql -U postgres -d cv_matching < infra/init_db.sql
 
 echo -e "${GREEN}✅ Setup Complete!${NC}"
