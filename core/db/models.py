@@ -73,8 +73,7 @@ class Job(SQLModel, table=True):
 
     # Optimized fields for retrieval
     canonical_text: Optional[str] = None  # Pre-computed text representation
-
-
+    canonical_json: Optional[Dict] = Field(default=None, sa_column=Column(JSON)) 
 class Feedback(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     job_id: str
@@ -107,12 +106,6 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_cv_analyzed: Optional[datetime] = None
 
-class SystemMetric(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(index=True) # e.g., "db_query_latency", "llm_response_time"
-    value: float
-    tags: Dict = Field(default={}, sa_column=Column(JSON)) # e.g., {"operation": "match", "model": "llama3"}
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 class UserInteraction(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -135,19 +128,6 @@ class Application(SQLModel, table=True):
     decided_by: Optional[int] = Field(default=None, foreign_key="user.id")
     notes: Optional[str] = None
 
-class BatchJob(SQLModel, table=True):
-    """Track batch processing jobs."""
-    id: Optional[int] = Field(default=None, primary_key=True)
-    batch_id: str = Field(unique=True, index=True)
-    type: str = "cv_bulk_upload"
-    status: str = "pending"  # pending, processing, completed, failed
-    total_items: int = 0
-    processed_items: int = 0
-    results: Optional[Dict] = Field(default={}, sa_column=Column(JSON))
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    completed_at: Optional[datetime] = None
-    error: Optional[str] = None
-
 class BatchRequest(SQLModel, table=True):
     """Track OpenAI Batch API requests."""
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -159,10 +139,10 @@ class BatchRequest(SQLModel, table=True):
     status: str = "validating" # validating, failed, in_progress, finalizing, completed, expired, cancelling, cancelled
     request_counts: Optional[Dict] = Field(default={}, sa_column=Column(JSON)) # {total, completed, failed}
     batch_metadata: Optional[Dict] = Field(default={}, sa_column=Column(JSON))
-    
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    completed_at: Optional[datetime] = None
-    
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)  # Batch submission time
+    completed_at: Optional[datetime] = None  # Batch completion time (runtime = completed_at - created_at)
+
     # Type of batch: 'embedding', 'explanation', etc.
     batch_type: str = "embedding"
 
@@ -172,6 +152,11 @@ class Prediction(SQLModel, table=True):
     cv_id: str = Field(index=True)
     matches: List[Dict] = Field(default=[], sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Generation time tracking
+    matching_completed_at: Optional[datetime] = Field(default=None)  # When matches were generated
+    explanation_completed_at: Optional[datetime] = Field(default=None)  # When explanations were added
+    is_first_prediction: bool = Field(default=False)  # True if this is the CV's first prediction
 
 # Engine creation
 # database_url = "postgresql://postgres:postgres@localhost:5432/cv_matching"
