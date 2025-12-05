@@ -6,7 +6,7 @@ You can access the database directly inside the Docker container.
 
 ### 1. Connect to Database
 ```bash
-docker compose -f infra/docker-compose.yml exec db psql -U postgres -d cv_matching
+docker-compose -f infra/docker-compose.yml exec db psql -U postgres -d cv_matching
 ```
 
 ### 2. Common Queries
