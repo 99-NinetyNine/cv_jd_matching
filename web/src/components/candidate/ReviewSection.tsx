@@ -17,6 +17,7 @@ interface ReviewSectionProps {
 const CollapsibleSection = memo(({ title, isExpanded, onToggle, children }: any) => (
     <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
         <button
+            type="button"
             onClick={onToggle}
             className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 flex items-center justify-between transition-colors"
         >
@@ -30,6 +31,7 @@ const CollapsibleSection = memo(({ title, isExpanded, onToggle, children }: any)
                     animate={{ height: 'auto' }}
                     exit={{ height: 0 }}
                     className="overflow-hidden"
+                    onClick={(e) => e.stopPropagation()}
                 >
                     <div className="p-4 space-y-4">
                         {children}
