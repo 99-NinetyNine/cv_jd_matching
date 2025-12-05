@@ -1,12 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Briefcase, Crown } from 'lucide-react';
 import { StatusIndicator } from '../components/candidate/StatusIndicator';
 import { UploadSection } from '../components/candidate/UploadSection';
-import { ReviewSection } from '../components/candidate/ReviewSection';
 import { ResultsSection } from '../components/candidate/ResultsSection';
-import { AIReasoningPanel } from '../components/candidate/AIReasoningPanel';
 import { AIInsightsDisplay } from '../components/candidate/AIInsightsDisplay';
-import { api, API_URL } from '../utils/api';
+
+import { AIPortalSection } from '../components/candidate/AIPortalSection';
+import { api } from '../utils/api';
 
 interface Match {
     job_id: string;
@@ -25,41 +25,25 @@ const CandidateDashboard = () => {
     const [status, setStatus] = useState<ProcessingStatus>('idle');
     const [matches, setMatches] = useState<Match[]>([]);
     const [error, setError] = useState<string | null>(null);
-    const [parsedData, setParsedData] = useState<any>(null);
-    const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
-    const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['basics']));
     const [cvId, setCvId] = useState<string | null>(null);
     const [predictionId, setPredictionId] = useState<string | null>(null);
     const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
     const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
-    const [isPremium, setIsPremium] = useState<boolean>(() => {
-        const stored = localStorage.getItem('isPremium');
-        return stored === 'true';
-    });
+    const [isPremium, setIsPremium] = useState<boolean>(false);
 
     // Premium AI Analysis State
-    const [showAIAnalysis, setShowAIAnalysis] = useState(false);
     const [aiInsights, setAiInsights] = useState<any>(null);
 
-    const apiUrl = API_URL;
+
+
+    // AI Portal Modal state
+    const [showAIPortal, setShowAIPortal] = useState(false);
+    const [portalCvId, setPortalCvId] = useState<string | null>(null);
 
     const togglePremium = () => {
         const newPremiumStatus = !isPremium;
         setIsPremium(newPremiumStatus);
-        localStorage.setItem('isPremium', newPremiumStatus.toString());
     };
-
-    const toggleSection = useCallback((section: string) => {
-        setExpandedSections(prev => {
-            const newExpanded = new Set(prev);
-            if (newExpanded.has(section)) {
-                newExpanded.delete(section);
-            } else {
-                newExpanded.add(section);
-            }
-            return newExpanded;
-        });
-    }, []);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -77,15 +61,7 @@ const CandidateDashboard = () => {
         }
     };
 
-    const handleConfirm = () => {
-        if (wsConnection && parsedData) {
-            wsConnection.send(JSON.stringify({
-                action: "confirm",
-                data: parsedData
-            }));
-            setStatus('matching');
-        }
-    };
+
 
     const logInteraction = async (jobId: string, action: 'viewed' | 'applied' | 'saved'): Promise<boolean> => {
         if (!cvId) return false;
@@ -131,90 +107,31 @@ const CandidateDashboard = () => {
         }
     };
 
-    const handleAIAnalysisComplete = useCallback((results: any) => {
-        console.log('✓ AI Analysis Complete:', results);
-        setAiInsights(results);
-        setStatus('complete');
-    }, []);
+
 
     const handleUpload = async () => {
         if (!file) return;
         setStatus('uploading');
         setError(null);
         setMatches([]);
-        setParsedData(null);
 
         const formData = new FormData();
         formData.append('file', file);
 
         try {
             if (isPremium) {
-                // PREMIUM FLOW: WebSocket
-                // 1. Upload
-                const uploadRes = await api.post('/upload', formData, {
+                // PREMIUM FLOW: AI Portal Modal
+                // 1. Upload to super-advanced endpoint
+                const uploadRes = await api.post('/super-advanced/upload', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 const uploadedCvId = uploadRes.data.cv_id;
                 setCvId(uploadedCvId);
+                setPortalCvId(uploadedCvId);
 
-                // 2. Connect WebSocket
-                const apiBase = apiUrl.replace(/^http/, 'ws');
-                const ws = new WebSocket(`${apiBase}/ws/candidate/${uploadedCvId}`);
-                setWsConnection(ws);
-
-                ws.onopen = () => {
-                    console.log("WS Connected");
-                };
-
-                ws.onmessage = (event) => {
-                    const data = JSON.parse(event.data);
-                    console.log("WS Message:", data);
-
-                    if (data.status === "parsing_started") {
-                        setStatus('parsing');
-                    } else if (data.status === "parsing_complete") {
-                        setParsedData(data.data);
-                        setStatus('reviewing');
-                    } else if (data.status === "matching_started") {
-                        setStatus('matching');
-                    } else if (data.status === "complete") {
-                        setMatches(data.matches);
-                        // Store prediction_id from backend
-                        if (data.prediction_id) {
-                            setPredictionId(data.prediction_id);
-                            console.log(`✓ Prediction ID: ${data.prediction_id}`);
-                        }
-                        // Log 'viewed' for all matches with prediction_id
-                        if (data.matches && data.matches.length > 0) {
-                            data.matches.forEach((match: Match) => {
-                                logInteraction(match.job_id, 'viewed');
-                            });
-                        }
-                        ws.close();
-
-                        // Premium: Trigger AI Analysis
-                        if (isPremium) {
-                            setStatus('ai_analyzing');
-                            setShowAIAnalysis(true);
-                        } else {
-                            setStatus('complete');
-                        }
-                    } else if (data.status === "error") {
-                        setError(data.message);
-                        setStatus('idle');
-                        ws.close();
-                    }
-                };
-
-                ws.onerror = (error) => {
-                    console.error("WS Error:", error);
-                    setError("WebSocket connection failed.");
-                    setStatus('idle');
-                };
-
-                ws.onclose = () => {
-                    console.log("WS Closed");
-                };
+                // 2. Open AI Portal Modal
+                setShowAIPortal(true);
+                setStatus('idle'); // Reset status as modal handles its own
             } else {
                 // NON-PREMIUM FLOW: Simple Upload
                 await api.post('/upload', formData, {
@@ -230,34 +147,24 @@ const CandidateDashboard = () => {
         }
     };
 
-    const updateBasics = useCallback((field: string, value: any) => {
-        setParsedData((prev: any) => ({
-            ...prev,
-            basics: { ...prev.basics, [field]: value }
-        }));
-    }, []);
+    const handleAIPortalComplete = (matches: any[], aiInsights?: any) => {
+        console.log('✓ AI Portal Complete:', { matches, aiInsights });
+        setMatches(matches);
+        if (aiInsights) {
+            setAiInsights(aiInsights);
+        }
+        setShowAIPortal(false);
+        setStatus('complete');
 
-    const updateArrayItem = useCallback((section: string, index: number, field: string, value: any) => {
-        setParsedData((prev: any) => {
-            const newArray = [...(prev[section] || [])];
-            newArray[index] = { ...newArray[index], [field]: value };
-            return { ...prev, [section]: newArray };
-        });
-    }, []);
+        // Log viewed interactions
+        if (matches && matches.length > 0) {
+            matches.forEach((match: any) => {
+                logInteraction(match.job_id || match.data?.job_id, 'viewed');
+            });
+        }
+    };
 
-    const addArrayItem = useCallback((section: string, template: any) => {
-        setParsedData((prev: any) => ({
-            ...prev,
-            [section]: [...(prev[section] || []), template]
-        }));
-    }, []);
 
-    const removeArrayItem = useCallback((section: string, index: number) => {
-        setParsedData((prev: any) => ({
-            ...prev,
-            [section]: (prev[section] || []).filter((_: any, i: number) => i !== index)
-        }));
-    }, []);
 
     // Fetch recommendations on mount (only for premium/returning users really, but good to have)
     React.useEffect(() => {
@@ -330,8 +237,17 @@ const CandidateDashboard = () => {
                     <StatusIndicator status={status as any} />
                 )}
 
-                {/* Upload Section */}
-                {status === 'idle' && matches.length === 0 && (
+                {/* AI Portal Section */}
+                {showAIPortal && portalCvId && (
+                    <AIPortalSection
+                        cvId={portalCvId}
+                        isPremium={isPremium}
+                        onComplete={handleAIPortalComplete}
+                    />
+                )}
+
+                {/* Upload Section - Hidden when AI Portal is active */}
+                {!showAIPortal && (
                     <UploadSection
                         file={file}
                         error={error}
@@ -362,21 +278,6 @@ const CandidateDashboard = () => {
                     </div>
                 )}
 
-                {/* Review Section */}
-                {status === 'reviewing' && parsedData && (
-                    <ReviewSection
-                        parsedData={parsedData}
-                        expandedSections={expandedSections}
-                        toggleSection={toggleSection}
-                        updateBasics={updateBasics}
-                        updateArrayItem={updateArrayItem}
-                        addArrayItem={addArrayItem}
-                        removeArrayItem={removeArrayItem}
-                        onConfirm={handleConfirm}
-                        onCancel={() => setStatus('idle')}
-                    />
-                )}
-
                 {/* Loading States */}
                 {(status === 'uploading' || status === 'parsing' || status === 'matching') && (
                     <div className="text-center py-12">
@@ -386,16 +287,6 @@ const CandidateDashboard = () => {
                             {status === 'parsing' && 'Parsing your CV with AI...'}
                             {status === 'matching' && 'Finding the best job matches...'}
                         </p>
-                    </div>
-                )}
-
-                {/* Premium AI Analysis Panel (Streaming) */}
-                {showAIAnalysis && cvId && isPremium && (
-                    <div className="mb-8">
-                        <AIReasoningPanel
-                            cvId={cvId}
-                            onComplete={handleAIAnalysisComplete}
-                        />
                     </div>
                 )}
 
@@ -420,6 +311,8 @@ const CandidateDashboard = () => {
                     />
                 )}
             </main>
+
+
         </div>
     );
 };

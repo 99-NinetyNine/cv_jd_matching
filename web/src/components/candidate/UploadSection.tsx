@@ -42,11 +42,15 @@ export const UploadSection: React.FC<UploadSectionProps> = ({
                 {file && (
                     <button
                         onClick={onUpload}
-                        disabled={status !== 'idle'}
-                        className={`px-6 py-2.5 rounded-lg font-medium text-white transition-all shadow-sm ${status !== 'idle' ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                        disabled={['uploading', 'parsing', 'matching', 'ai_analyzing'].includes(status)}
+                        className={`px-8 py-3 rounded-lg font-bold text-white transition-all shadow-lg transform hover:scale-105 ${['uploading', 'parsing', 'matching', 'ai_analyzing'].includes(status)
+                                ? 'bg-slate-400 cursor-not-allowed'
+                                : isPremium
+                                    ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:shadow-xl animate-pulse'
+                                    : 'bg-indigo-600 hover:bg-indigo-700'
                             }`}
                     >
-                        {isPremium ? 'Analyze & Match' : 'Upload CV'}
+                        {isPremium ? '✨ Unlock AI Portal' : 'Upload CV'}
                     </button>
                 )}
             </div>
