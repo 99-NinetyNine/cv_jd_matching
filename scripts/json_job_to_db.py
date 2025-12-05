@@ -61,25 +61,13 @@ def import_jobs():
         owner_id = get_or_create_owner(session)
         
         imported_count = 0
-        skipped_count = 0
         
         for json_file in json_files:
             try:
                 with open(json_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 
-                job_id = data.get("job_id")
-                if not job_id:
-                    print(f"Skipping {json_file.name}: No job_id found")
-                    continue
-                
-                # Check if job already exists
-                existing_job = session.exec(select(Job).where(Job.job_id == job_id)).first()
-                if existing_job:
-                    print(f"Skipping {job_id}: Already exists")
-                    skipped_count += 1
-                    continue
-                
+               
                 # Prepare job data
                 # We need to handle nested dictionaries like location, skills, company_profile
                 # The Job model expects these as JSON fields (if defined as such) or flattened?
@@ -102,7 +90,6 @@ def import_jobs():
                 text_rep = get_job_text_representation(data)
                 
                 job = Job(
-                    job_id=job_id,
                     owner_id=owner_id,
                     title=data.get("title"),
                     company=data.get("company"),
@@ -136,7 +123,6 @@ def import_jobs():
                 
                 session.add(job)
                 imported_count += 1
-                print(f"Imported job: {job_id} - {job.title}")
                 
             except Exception as e:
                 print(f"Error importing {json_file.name}: {e}")
@@ -144,7 +130,6 @@ def import_jobs():
         session.commit()
         print(f"\nImport finished.")
         print(f"Imported: {imported_count}")
-        print(f"Skipped: {skipped_count}")
 
 if __name__ == "__main__":
     import_jobs()
