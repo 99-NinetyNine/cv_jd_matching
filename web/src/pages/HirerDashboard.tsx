@@ -20,12 +20,20 @@ interface Application {
     } | null;
 }
 
+interface Location {
+    address?: string;
+    postalCode?: string;
+    city?: string;
+    countryCode?: string;
+    region?: string;
+}
+
 interface Job {
     id: number;
     job_id: string;
     title: string;
     company: string;
-    location?: string | any;
+    location?: Location;
     created_at: string;
 }
 
@@ -228,13 +236,11 @@ const HirerDashboard = () => {
                                         <div className="text-sm text-slate-500 mt-1">{job.company}</div>
                                         {job.location && (
                                             <div className="text-xs text-slate-400 mt-1">
-                                                {typeof job.location === 'object'
-                                                    ? [
-                                                        (job.location as any).city,
-                                                        (job.location as any).region,
-                                                        (job.location as any).countryCode
-                                                    ].filter(Boolean).join(', ') || 'Remote'
-                                                    : job.location}
+                                                {[
+                                                    job.location.city,
+                                                    job.location.region,
+                                                    job.location.countryCode
+                                                ].filter(Boolean).join(', ') || 'Remote'}
                                             </div>
                                         )}
                                     </button>

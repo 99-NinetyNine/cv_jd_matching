@@ -16,7 +16,9 @@ const PostJob = () => {
         skills: '', // Comma separated
         salary_range: '',
         benefits: '', // Comma separated
-        location: '',
+        location_city: '',
+        location_region: '',
+        location_countryCode: '',
         country: '',
         work_type: 'Full-Time',
         company_size: '',
@@ -45,8 +47,18 @@ const PostJob = () => {
             }
 
             // Process lists - skills need to be objects with name, level, keywords
+            // Destructure to exclude location_* fields from the spread
+            const { location_city, location_region, location_countryCode, ...restFormData } = formData;
+
             const payload = {
-                ...formData,
+                ...restFormData,
+                location: {
+                    city: location_city || '',
+                    region: location_region || '',
+                    countryCode: location_countryCode || '',
+                    address: '',
+                    postalCode: ''
+                },
                 skills: formData.skills.split(',').map(s => ({
                     name: s.trim(),
                     level: '',
@@ -180,11 +192,36 @@ const PostJob = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-slate-700">Location</label>
+                                <label className="block text-sm font-medium text-slate-700">City</label>
                                 <input
                                     type="text"
-                                    name="location"
-                                    value={formData.location}
+                                    name="location_city"
+                                    placeholder="e.g. San Francisco"
+                                    value={formData.location_city}
+                                    onChange={handleChange}
+                                    className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Region/State</label>
+                                <input
+                                    type="text"
+                                    name="location_region"
+                                    placeholder="e.g. California"
+                                    value={formData.location_region}
+                                    onChange={handleChange}
+                                    className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700">Country Code</label>
+                                <input
+                                    type="text"
+                                    name="location_countryCode"
+                                    placeholder="e.g. US"
+                                    value={formData.location_countryCode}
                                     onChange={handleChange}
                                     className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
                                 />
