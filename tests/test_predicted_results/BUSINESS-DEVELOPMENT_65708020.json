@@ -1,0 +1,87 @@
+{
+  "status": "complete",
+  "candidate_id": "d4e6e0c5-d86b-4aac-9cf2-c2e0f3114896",
+  "candidate_name": "John Doe",
+  "recommendations": [
+    {
+      "job_id": 9,
+      "job_title": "Procurement Manager",
+      "company": "RWE AG",
+      "match_score": -0.327,
+      "matching_factors": {
+        "skills_match": 0.2,
+        "experience_match": 0.75,
+        "education_match": 0.8,
+        "semantic_similarity": -2.816
+      },
+      "matched_skills": [
+        "identify",
+        "identify and"
+      ],
+      "missing_skills": [
+        "bba",
+        "inclusion identify",
+        "monitor",
+        "monitor compliance",
+        "promote",
+        "promote diversity",
+        "promote supplier",
+        "suppliers monitor"
+      ],
+      "explanation": "The candidate's extensive 10+ years in business development and account management, coupled with strong relationship building and strategic planning skills, align well with the Supplier Diversity Manager role. Their proven ability to develop customized account plans and drive business development is directly transferable to identifying, onboarding, and engaging diverse suppliers and promoting inclusion initiatives. Furthermore, their strategic vision and clear communication will be invaluable for assessing supplier performance and advancing diversity goals within the supply chain.",
+      "location": {
+        "address": "",
+        "postalCode": "",
+        "city": "Panama City",
+        "countryCode": "Panama",
+        "region": ""
+      },
+      "salary_range": "$55K-$84K"
+    },
+    {
+      "job_id": 3,
+      "job_title": "Market Analyst",
+      "company": "Mindtree Limited",
+      "match_score": -0.396,
+      "matching_factors": {
+        "skills_match": 0.0,
+        "experience_match": 0.75,
+        "education_match": 0.9,
+        "semantic_similarity": -2.873
+      },
+      "matched_skills": [],
+      "missing_skills": [
+        "analysts",
+        "analysts gather",
+        "analyze",
+        "analyze competitors",
+        "competitive",
+        "competitive analysis market research data analysis business strategy industry knowledge",
+        "competitive intelligence",
+        "intelligence",
+        "intelligence analysts",
+        "m.tech",
+        "offerings provide",
+        "positioning analyze",
+        "provide",
+        "provide recommendations",
+        "research",
+        "research competitors",
+        "they",
+        "they analyze",
+        "trends they"
+      ],
+      "explanation": "With over 10 years of experience in business development and marketing, the candidate possesses a strong background in understanding market dynamics, perfectly aligning with the job's experience requirement and core function. Their proven skills in Sales/Market Analysis, Strategic Planning, and being an Analytical Problem Solver directly match the need for Competitive analysis, Market research, and Business strategy. Furthermore, the candidate's ability to leverage industry trends and provide strategic value to drive business development directly supports the role's responsibility to assess market positioning and provide recommendations for competitive advantage.",
+      "location": {
+        "address": "",
+        "postalCode": "",
+        "city": "Lilongwe",
+        "countryCode": "Malawi",
+        "region": ""
+      },
+      "salary_range": "$65K-$103K"
+    }
+  ],
+  "prediction_id": "9bd92952-8ff9-4adb-a046-d6b24d2c9fdf",
+  "cv_id": "d4e6e0c5-d86b-4aac-9cf2-c2e0f3114896"
+}

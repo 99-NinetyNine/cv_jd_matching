@@ -1,0 +1,62 @@
+{
+  "job_id": "8623498759834756",
+  "title": "Advocate / Legal Associate",
+  "company": "Harper & Finch Legal Group",
+  "description": "An Advocate provides legal representation, drafts legal documents, researches case laws, and advises clients on legal rights and obligations.",
+  "type": "Full-Time",
+  "date": "2024-01-15",
+  "location": {
+    "city": "Chicago",
+    "countryCode": "United States",
+    "latitude": 41.8781,
+    "longitude": -87.6298
+  },
+  "salary": "$78K-$142K",
+  "experience": "2 to 10 Years",
+  "responsibilities": [
+    "Prepare legal briefs, arguments, and documents.",
+    "Represent clients in court hearings, mediations, and arbitrations.",
+    "Conduct deep legal research and analyze case precedents.",
+    "Advise clients regarding litigation risks and legal obligations.",
+    "Negotiate settlements and manage client communications."
+  ],
+  "qualifications": [
+    "LLB",
+    "Bar Council Registration"
+  ],
+  "skills": [
+    {
+      "name": "Legal research Litigation Case analysis Drafting Negotiation",
+      "level": null,
+      "keywords": []
+    }
+  ],
+  "role": "Advocate",
+  "salary_range": "$78K-$142K",
+  "benefits": [
+    "Health Insurance",
+    "Retirement Plans",
+    "Legal Education Reimbursement",
+    "Professional Development Allowance",
+    "Paid Court Travel Expenses"
+  ],
+  "company_size": 350,
+  "job_posting_date": "2024-01-15",
+  "preference": "Both",
+  "contact_person": "Emily Carter",
+  "contact": "312-555-9283x221",
+  "job_portal": "LinkedIn",
+  "company_profile": {
+    "Sector": "Legal Services",
+    "Industry": "Law Practice",
+    "City": "Chicago",
+    "State": "Illinois",
+    "Zip": "60601",
+    "Website": "www.harperfinchlegal.com",
+    "Ticker": "N/A",
+    "CEO": "Lucas Harper"
+  },
+  "country": "United States",
+  "latitude": 41.8781,
+  "longitude": -87.6298
+}

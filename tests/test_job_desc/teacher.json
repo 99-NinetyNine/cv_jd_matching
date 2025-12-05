@@ -1,0 +1,62 @@
+{
+  "job_id": "5734987598347532",
+  "title": "High School Science Teacher",
+  "company": "Brightwood International School",
+  "description": "A Science Teacher delivers engaging lessons, prepares instructional materials, evaluates student performance, and fosters academic development.",
+  "type": "Full-Time",
+  "date": "2024-02-20",
+  "location": {
+    "city": "Sydney",
+    "countryCode": "Australia",
+    "latitude": -33.8688,
+    "longitude": 151.2093
+  },
+  "salary": "$49K-$92K",
+  "experience": "1 to 12 Years",
+  "responsibilities": [
+    "Develop and teach science curriculum for grades 9–12.",
+    "Prepare laboratory activities and ensure safety compliance.",
+    "Monitor and evaluate student performance and assignments.",
+    "Assist in extracurricular STEM activities and science fairs.",
+    "Collaborate with academic staff to improve teaching standards."
+  ],
+  "qualifications": [
+    "B.Ed.",
+    "Teaching License"
+  ],
+  "skills": [
+    {
+      "name": "Classroom management Curriculum planning Student assessment STEM teaching",
+      "level": null,
+      "keywords": []
+    }
+  ],
+  "role": "Science Teacher",
+  "salary_range": "$49K-$92K",
+  "benefits": [
+    "Teacher Training Programs",
+    "Health Insurance",
+    "Annual Performance Bonus",
+    "Professional Learning Allowances",
+    "Paid School Breaks"
+  ],
+  "company_size": 180,
+  "job_posting_date": "2024-02-20",
+  "preference": "Both",
+  "contact_person": "Daniel Morris",
+  "contact": "+61-2-4567-8891",
+  "job_portal": "Indeed",
+  "company_profile": {
+    "Sector": "Education",
+    "Industry": "K-12 School",
+    "City": "Sydney",
+    "State": "New South Wales",
+    "Zip": "2000",
+    "Website": "www.brightwoodschool.edu.au",
+    "Ticker": "N/A",
+    "CEO": "Rachel Bennett"
+  },
+  "country": "Australia",
+  "latitude": -33.8688,
+  "longitude": 151.2093
+}

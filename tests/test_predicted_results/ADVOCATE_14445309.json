@@ -1,0 +1,91 @@
+{
+  "status": "complete",
+  "candidate_id": "05e8f2c5-8195-4e2e-95a0-2c6ba42b4248",
+  "candidate_name": "",
+  "recommendations": [
+    {
+      "job_id": 6,
+      "job_title": "Advocate / Legal Associate",
+      "company": "Harper & Finch Legal Group",
+      "match_score": -0.003,
+      "matching_factors": {
+        "skills_match": 0.158,
+        "experience_match": 1.0,
+        "education_match": 0.8,
+        "semantic_similarity": -1.714
+      },
+      "matched_skills": [
+        "bar",
+        "council",
+        "represent"
+      ],
+      "missing_skills": [
+        "advise",
+        "advise clients",
+        "advocate",
+        "advocate provides",
+        "bar council",
+        "conduct",
+        "conduct deep",
+        "council registration",
+        "legal research litigation case analysis drafting negotiation",
+        "llb",
+        "negotiate",
+        "negotiate settlements",
+        "prepare",
+        "prepare legal",
+        "registration",
+        "represent clients"
+      ],
+      "explanation": "The candidate is an excellent fit for the Advocate role, possessing direct experience representing military families and navigating complex policy and legal matters, including health and special education law. As a conscientious attorney and member of the Maryland Bar, they bring strong foundational legal knowledge, statutory public policy expertise, and practical experience in government relations and advocacy. This background directly aligns with the job's requirements for legal representation, document drafting, client advising, and negotiating settlements.",
+      "location": {
+        "address": "",
+        "postalCode": "",
+        "city": "Chicago",
+        "countryCode": "United States",
+        "region": ""
+      },
+      "salary_range": "$78K-$142K"
+    },
+    {
+      "job_id": 1,
+      "job_title": "Substance Abuse Counselor",
+      "company": "Wipro Limited",
+      "match_score": -0.451,
+      "matching_factors": {
+        "skills_match": 0.154,
+        "experience_match": 0.75,
+        "education_match": 0.7,
+        "semantic_similarity": -3.19
+      },
+      "matched_skills": [
+        "assist",
+        "offer"
+      ],
+      "missing_skills": [
+        "addiction recovery support motivational interviewing relapse prevention strategies",
+        "assist with",
+        "coach",
+        "coach offers",
+        "foster",
+        "mca",
+        "offer ongoing",
+        "recovery",
+        "recovery assist",
+        "recovery coach",
+        "skills foster"
+      ],
+      "explanation": "The candidate's extensive background as an Advocate, representing and assisting vulnerable families with complex needs, demonstrates strong transferable skills in providing guidance and support essential for a Recovery Coach. Their experience in health law, public policy, and navigating intricate systems aligns with the job's focus on helping individuals build stable lives and overcome challenges. This background suggests the candidate possesses the empathy, interpersonal skills, and ability to offer crucial support for relapse prevention and fostering a supportive relationship.",
+      "location": {
+        "address": "",
+        "postalCode": "",
+        "city": "Asunci\u00c3\u00b3n",
+        "countryCode": "Paraguay",
+        "region": ""
+      },
+      "salary_range": "$57K-$112K"
+    }
+  ],
+  "prediction_id": "fbe2b6fb-3eb9-4f2f-afb7-adf5f3f98f42",
+  "cv_id": "05e8f2c5-8195-4e2e-95a0-2c6ba42b4248"
+}

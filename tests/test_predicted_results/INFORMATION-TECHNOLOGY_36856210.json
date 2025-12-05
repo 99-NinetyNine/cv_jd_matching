@@ -1,0 +1,85 @@
+{
+  "status": "complete",
+  "candidate_id": "534c21b8-2896-4b06-8464-2cc472b2c198",
+  "candidate_name": "JOHN DOE",
+  "recommendations": [
+    {
+      "job_id": 7,
+      "job_title": "QA Analyst",
+      "company": "Community Health Systems",
+      "match_score": -0.616,
+      "matching_factors": {
+        "skills_match": 0.059,
+        "experience_match": 0.75,
+        "education_match": 0.55,
+        "semantic_similarity": -3.627
+      },
+      "matched_skills": [
+        "collaborate with"
+      ],
+      "missing_skills": [
+        "collaborate",
+        "create",
+        "create and",
+        "developers they",
+        "issues create",
+        "mba",
+        "perform",
+        "perform manual",
+        "plans collaborate",
+        "qa",
+        "selenium)",
+        "software",
+        "testers",
+        "testers ensure",
+        "they",
+        "they play"
+      ],
+      "explanation": "The candidate's extensive 37 years of experience in enterprise design and engineering, coupled with expertise in information assurance and risk management, provides a robust understanding of system integrity and functionality essential for quality assurance. Their proficiency in product requirements documentation, project tracking, and hardware/software upgrade planning demonstrates a strong grasp of the software development lifecycle, which is highly beneficial for test planning and execution. While not explicitly listing traditional QA skills, the candidate's background in identifying vulnerabilities and ensuring system accreditation directly aligns with the core responsibility of identifying defects and ensuring software reliability.",
+      "location": {
+        "address": "",
+        "postalCode": "",
+        "city": "Seoul",
+        "countryCode": "North Korea",
+        "region": ""
+      },
+      "salary_range": "$65K-$91K"
+    },
+    {
+      "job_id": 9,
+      "job_title": "Procurement Manager",
+      "company": "RWE AG",
+      "match_score": -0.629,
+      "matching_factors": {
+        "skills_match": 0.0,
+        "experience_match": 0.75,
+        "education_match": 0.7,
+        "semantic_similarity": -3.685
+      },
+      "matched_skills": [],
+      "missing_skills": [
+        "bba",
+        "identify",
+        "identify and",
+        "inclusion identify",
+        "monitor",
+        "monitor compliance",
+        "promote",
+        "promote diversity",
+        "promote supplier",
+        "suppliers monitor"
+      ],
+      "explanation": "The candidate's extensive 37 years in Enterprise design and engineering, coupled with their ability to analyze risk and find cost-effective solutions, demonstrates a strategic and problem-solving mindset valuable for managing complex programs. Their proven track record in establishing realistic goals, enforcing deadlines, and \"PROJECT TRACKING\" aligns with the need to effectively manage and monitor supplier diversity initiatives and compliance. As a self-directed and decisive professional focused on boosting performance and productivity, the candidate possesses strong organizational and execution skills transferable to promoting diversity and inclusion within the supply chain.",
+      "location": {
+        "address": "",
+        "postalCode": "",
+        "city": "Panama City",
+        "countryCode": "Panama",
+        "region": ""
+      },
+      "salary_range": "$55K-$84K"
+    }
+  ],
+  "prediction_id": "d1228505-4302-4132-bee5-2e0dd2374e64",
+  "cv_id": "534c21b8-2896-4b06-8464-2cc472b2c198"
+}

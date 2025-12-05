@@ -1,0 +1,95 @@
+{
+  "status": "complete",
+  "candidate_id": "46de32d7-f111-45fb-8829-277c465abf6c",
+  "candidate_name": "Test User",
+  "recommendations": [
+    {
+      "job_id": 8,
+      "job_title": "Architectural Designer",
+      "company": "Asian Paints",
+      "match_score": -0.185,
+      "matching_factors": {
+        "skills_match": 0.316,
+        "experience_match": 0.75,
+        "education_match": 0.9,
+        "semantic_similarity": -2.474
+      },
+      "matched_skills": [
+        "assist",
+        "cad",
+        "coordination ensure",
+        "design cad",
+        "drafters",
+        "prepare"
+      ],
+      "missing_skills": [
+        "architectural",
+        "architectural drafters",
+        "assist architects",
+        "cad software",
+        "drafters assist",
+        "ensure",
+        "ensure compliance",
+        "mba",
+        "prepare detailed",
+        "software assist",
+        "structures they",
+        "they",
+        "they use"
+      ],
+      "explanation": "The candidate's extensive experience as a Designer, spanning over 15 years, directly aligns with the job's core need for an Architectural Drafter. Their strong proficiency in AutoCAD Drafting and 3D Rendering, coupled with a background in creating detailed CAD drawings for custom furniture and product specifications, directly matches the requirement to prepare architectural plans using CAD software. This proven ability to produce precise technical drawings and assist in design processes makes them a strong fit for supporting architects in project documentation and coordination.",
+      "location": {
+        "address": "",
+        "postalCode": "",
+        "city": "Tunis",
+        "countryCode": "Tunisia",
+        "region": ""
+      },
+      "salary_range": "$61K-$108K"
+    },
+    {
+      "job_id": 7,
+      "job_title": "QA Analyst",
+      "company": "Community Health Systems",
+      "match_score": -0.442,
+      "matching_factors": {
+        "skills_match": 0.118,
+        "experience_match": 0.75,
+        "education_match": 0.7,
+        "semantic_similarity": -3.102
+      },
+      "matched_skills": [
+        "create",
+        "create and"
+      ],
+      "missing_skills": [
+        "collaborate",
+        "collaborate with",
+        "developers they",
+        "issues create",
+        "mba",
+        "perform",
+        "perform manual",
+        "plans collaborate",
+        "qa",
+        "selenium)",
+        "software",
+        "testers",
+        "testers ensure",
+        "they",
+        "they play"
+      ],
+      "explanation": "The candidate's extensive 15+ years of experience aligns well with the job's requirement for up to 15 years, indicating a seasoned professional. Their background in establishing \"Quality control standards,\" ensuring \"Product quality,\" and \"GMP Compliance\" demonstrates a strong, transferable understanding of quality assurance principles and meticulous attention to detail. Furthermore, experience in planning, directing, and coordinating complex processes, alongside strong communication skills, suggests an ability to manage tasks and collaborate effectively in a QA role.",
+      "location": {
+        "address": "",
+        "postalCode": "",
+        "city": "Seoul",
+        "countryCode": "North Korea",
+        "region": ""
+      },
+      "salary_range": "$65K-$91K"
+    }
+  ],
+  "prediction_id": "d3e6e6f9-039c-4a36-8395-66357e67d86a",
+  "cv_id": "46de32d7-f111-45fb-8829-277c465abf6c"
+}

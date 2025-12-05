@@ -1,0 +1,99 @@
+{
+  "status": "complete",
+  "candidate_id": "adbd462b-abe8-43cb-b909-d87fd68956d9",
+  "candidate_name": "Teacher N",
+  "recommendations": [
+    {
+      "job_id": 4,
+      "job_title": "High School Science Teacher",
+      "company": "Brightwood International School",
+      "match_score": -0.236,
+      "matching_factors": {
+        "skills_match": 0.19,
+        "experience_match": 0.75,
+        "education_match": 0.9,
+        "semantic_similarity": -2.501
+      },
+      "matched_skills": [
+        "develop and",
+        "stem",
+        "teacher",
+        "teaching"
+      ],
+      "missing_skills": [
+        "assist",
+        "b.ed",
+        "classroom management curriculum planning student assessment stem teaching",
+        "collaborate",
+        "collaborate with",
+        "develop",
+        "extracurricular stem",
+        "license",
+        "monitor",
+        "monitor and",
+        "prepare",
+        "prepare laboratory",
+        "science",
+        "science teacher",
+        "stem activities",
+        "teacher delivers",
+        "teaching license"
+      ],
+      "explanation": "The candidate's direct work experience as a \"Teacher\" and self-description as a \"Master teacher\" align perfectly with the High School Science Teacher role and its required experience range. Their strong instructional skills, including \"Instructional Design,\" \"Course Development,\" and \"Teaching,\" are crucial for developing engaging lessons and curriculum as outlined in the responsibilities. Furthermore, their proficiency in \"Progress Monitoring,\" \"Management,\" and \"Analysis\" directly supports student assessment, classroom management, and overall academic development required by the position.",
+      "location": {
+        "address": "",
+        "postalCode": "",
+        "city": "Sydney",
+        "countryCode": "Australia",
+        "region": ""
+      },
+      "salary_range": "$49K-$92K"
+    },
+    {
+      "job_id": 3,
+      "job_title": "Market Analyst",
+      "company": "Mindtree Limited",
+      "match_score": -0.293,
+      "matching_factors": {
+        "skills_match": 0.211,
+        "experience_match": 0.75,
+        "education_match": 0.7,
+        "semantic_similarity": -2.638
+      },
+      "matched_skills": [
+        "analysts",
+        "provide",
+        "provide recommendations",
+        "research"
+      ],
+      "missing_skills": [
+        "analysts gather",
+        "analyze",
+        "analyze competitors",
+        "competitive",
+        "competitive analysis market research data analysis business strategy industry knowledge",
+        "competitive intelligence",
+        "intelligence",
+        "intelligence analysts",
+        "m.tech",
+        "offerings provide",
+        "positioning analyze",
+        "research competitors",
+        "they",
+        "they analyze",
+        "trends they"
+      ],
+      "explanation": "The candidate's explicit skills in Research, Analysis, and Planning directly align with the core responsibilities of a Competitive Intelligence Analyst, which involve gathering and interpreting data to inform business decisions. Furthermore, their background as a \"Master teacher\" and listed skills in Instructional Design, Course Development, Progress Monitoring, Management, and especially Financial Analysis and Portfolio Management demonstrate strong analytical, strategic thinking, and data interpretation capabilities essential for market and competitive analysis. This role offers an ideal opportunity for the candidate to leverage their analytical and strategic expertise in a new industry, aligning with their stated goal of transitioning into a leadership-oriented position.",
+      "location": {
+        "address": "",
+        "postalCode": "",
+        "city": "Lilongwe",
+        "countryCode": "Malawi",
+        "region": ""
+      },
+      "salary_range": "$65K-$103K"
+    }
+  ],
+  "prediction_id": "097379c8-e605-442a-a5c7-f1686276f8fa",
+  "cv_id": "adbd462b-abe8-43cb-b909-d87fd68956d9"
+}

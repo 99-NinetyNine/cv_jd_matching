@@ -98,37 +98,6 @@ The mock service generates realistic responses based on request type:
 
 ---
 
-## Running Tests
-
-### Basic Test Run
-```bash
-pytest tests/test_batch_operations.py -v
-```
-
-### Test Specific Features
-```bash
-# Test batch service
-pytest tests/test_batch_operations.py::TestBatchService -v
-
-# Test batch parsing
-pytest tests/test_batch_operations.py::TestBatchParsing -v
-
-# Test batch matching
-pytest tests/test_batch_operations.py::TestBatchMatching -v
-
-# Test mock responses
-pytest tests/test_batch_operations.py::TestMockResponses -v
-
-# Test scalability
-pytest tests/test_batch_operations.py::TestScalability -v
-```
-
-### With Coverage
-```bash
-pytest tests/test_batch_operations.py --cov=core/services --cov=core/matching --cov=core/parsing
-```
-
----
 
 ## Testing Real Batch Operations
 
@@ -137,7 +106,7 @@ pytest tests/test_batch_operations.py --cov=core/services --cov=core/matching --
 from core.services.batch_service import BatchService
 
 # Explicitly use mock
-service = BatchService(use_mock=True)
+service = BatchService()
 ```
 
 ### Option 2: Use Environment Variable
