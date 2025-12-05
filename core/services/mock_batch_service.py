@@ -107,9 +107,7 @@ class MockBatchClient:
         # Save batch metadata
         self._save_batch_metadata(batch)
 
-        # Read input file and generate responses immediately (for testing speed)
-        self._process_batch_immediately(batch)
-
+     
         logger.info(f"Created mock batch {batch_id}")
         return batch
 
@@ -125,6 +123,7 @@ class MockBatchClient:
         """
         metadata_path = self.metadata_dir / f"{batch_id}.json"
 
+
         if not metadata_path.exists():
             raise ValueError(f"Batch {batch_id} not found")
 
@@ -138,6 +137,11 @@ class MockBatchClient:
             status=data["status"],
             metadata=data.get("metadata", {})
         )
+
+        # Read input file and generate responses immediately (for testing speed)
+        self._process_batch_immediately(batch)
+
+        # then ..
         batch.created_at = data["created_at"]
         batch.request_counts = data["request_counts"]
         batch.output_file_id = data.get("output_file_id")

@@ -11,13 +11,14 @@ try:
 except ImportError:
     OpenAI = None
 
+from core.configs import USE_REAL_LLM
 from core.db.models import BatchRequest, CV
 from sqlmodel import Session, select
 
 logger = logging.getLogger(__name__)
 
 class BatchService:
-    def __init__(self, api_key: str = None, use_mock: bool = None):
+    def __init__(self, api_key: str = None,):
         """
         Initialize BatchService.
 
@@ -26,13 +27,7 @@ class BatchService:
             use_mock: Force mock mode (if None, auto-detect from env/testing)
         """
         # Auto-detect mock mode from environment or testing context
-        if use_mock is None:
-            use_mock = os.getenv("USE_MOCK_BATCH", "false").lower() == "true"
-            # Also enable mock if OPENAI_API_KEY is not set (for testing)
-            if not os.getenv("OPENAI_API_KEY"):
-                use_mock = True
-
-        if use_mock:
+        if USE_REAL_LLM is False:
             from core.services.mock_batch_service import MockOpenAIClient
             self.client = MockOpenAIClient()
             logger.info("BatchService initialized with MockOpenAIClient")
@@ -91,18 +86,18 @@ class BatchService:
 
     def retrieve_batch(self, batch_id: str):
         """
-        Get batch status from OpenAI.
+        Get batch status from OpenAI or mock or gemini etc..
         """
         if not self.client:
-            raise RuntimeError("OpenAI client not initialized")
+            raise RuntimeError(" client not initialized")
         return self.client.batches.retrieve(batch_id)
 
     def retrieve_results(self, file_id: str) -> List[Dict]:
         """
-        Download and parse results from OpenAI.
+        Download and parse results from client like OpenAI or Mock.
         """
         if not self.client:
-            raise RuntimeError("OpenAI client not initialized")
+            raise RuntimeError("client not initialized")
             
         content = self.client.files.content(file_id).text
         results = []
@@ -113,10 +108,10 @@ class BatchService:
 
     def cancel_batch(self, batch_id: str):
         if not self.client:
-            raise RuntimeError("OpenAI client not initialized")
+            raise RuntimeError("client not initialized")
         self.client.batches.cancel(batch_id)
 
-    def prepare_embedding_requests(self, cvs: List[CV], model: str = "text-embedding-3-small") -> List[Dict]:
+    def prepare_cv_embedding_requests(self, cvs: List[CV], model: str = "text-embedding-3-small") -> List[Dict]:
         """
         Prepare batch requests for CV embeddings.
         """
