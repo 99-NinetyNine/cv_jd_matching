@@ -5,6 +5,7 @@ import numpy as np
 import logging
 import psycopg2
 import os
+from core.configs import USE_REAL_LLM
 from core.matching.embeddings import EmbeddingFactory
 from core.services.cv_service import get_cv_text_representation
 from core.services.job_service import get_job_text_representation
@@ -85,7 +86,7 @@ class GraphMatcher:
         try:
             # Optimized vector search - use data JSON column and canonical_text
             cur.execute("""
-                SELECT id, data, canonical_text, 1 - (embedding <=> %s::vector) as similarity
+                SELECT job_id, canonical_json, canonical_text, 1 - (embedding <=> %s::vector) as similarity
                 FROM job
                 WHERE embedding_status = 'completed'
                 ORDER BY embedding <=> %s::vector
@@ -136,8 +137,13 @@ class GraphMatcher:
                 
         # Sort
         matches.sort(key=lambda x: x["match_score"], reverse=True)
-        # Keep top 10 for detailed analysis
-        return {"matches": matches[:10]}
+        # Keep top 5 for detailed analysis
+        # for saving token limit...
+        import random 
+        l = 2
+        if random.random() > 0.8:
+            l = 1
+        return {"matches": matches[:l]}
     
     def analyze_factors(self, state: MatcherState):
         """Analyze detailed matching factors for each match."""
@@ -218,8 +224,9 @@ class GraphMatcher:
                 EXPLANATION:
                 """
                 ####
-                # TODO: remove
-                return match_item["job_id"], "very nice"  # Placeholder to avoid LLM calls during testing
+                if USE_REAL_LLM is False:
+                    print("test llm")
+                    return match_item["job_id"], "very nice"  # Placeholder to avoid LLM calls during testing
 
                 response = self.llm.invoke(prompt)
                 return match_item["job_id"], response.content
@@ -241,9 +248,11 @@ class GraphMatcher:
         for m in matches:
             result = {
                 "job_id": m["job_id"],
+                "title": m["data"].get("title", "Unknown"),
                 "job_title": m["data"].get("title", "Unknown"),
                 "company": m["data"].get("company", "Unknown"),
                 "match_score": round(m["match_score"], 3),
+                "similarity": round(m.get("similarity", 0.0), 3),
                 "matching_factors": {
                     k: round(v, 3) for k, v in m.get("matching_factors", {}).items()
                 },
@@ -254,6 +263,7 @@ class GraphMatcher:
                 "salary_range": m["data"].get("salary_range")
             }
             final_results.append(result)
+        print("why??", final_results)
             
         return {"final_results": final_results}
 

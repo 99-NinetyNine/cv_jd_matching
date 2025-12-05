@@ -8,6 +8,8 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from core.cache.redis_cache import redis_client
 import logging
 
+from core.services.embedding_utils import prepare_ollama_embedding
+
 logger = logging.getLogger(__name__)
 
 class Embedder(Protocol):
@@ -43,7 +45,7 @@ class OllamaEmbedder(BaseEmbedder):
                 json={"model": self.model, "prompt": text}
             )
             response.raise_for_status()
-            return response.json()["embedding"]
+            return prepare_ollama_embedding(response.json()["embedding"])
         except Exception as e:
             logger.error(f"Ollama embedding failed: {e}")
             raise

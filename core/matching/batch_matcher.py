@@ -5,25 +5,22 @@ Efficiently processes multiple CVs for job matching using:
 1. Optimized pgvector queries with CROSS JOIN LATERAL
 2. Pre-computed canonical text representations
 3. Bulk database operations
-4. Batch explanation generation via OpenAI API
+4. Batch explanation generation via SimpleBatchExplainer
 
 Flow:
 1. Find CVs needing fresh matches (> 6 hours old or never analyzed)
 2. Perform batch vector search across all jobs
 3. Create predictions in bulk
-4. Submit explanation requests to OpenAI Batch API
+4. Submit explanation requests via SimpleBatchExplainer (cache cleared when explanations complete)
 """
 
-import json
 import logging
-import os
 import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
 
-from core.db.models import CV, Prediction, BatchRequest
-from core.services.batch_service import BatchService
+from core.db.models import CV, Prediction
 from sqlmodel import Session, select
 from sqlalchemy import text
 
@@ -32,10 +29,6 @@ logger = logging.getLogger(__name__)
 
 class BatchMatcher:
     """Handles batch matching of CVs to jobs with optimized queries."""
-
-    def __init__(self):
-        """Initialize batch matcher with batch service."""
-        self.batch_service = BatchService()
 
     def find_cvs_needing_matches(
         self,
@@ -98,12 +91,12 @@ class BatchMatcher:
                 c.id as cv_id,
                 c.canonical_text as cv_text,
                 j.job_id as job_id,
-                j.data as job_data,
+                j.canonical_json as job_data,
                 j.canonical_text as job_text,
                 1 - (c.embedding <=> j.embedding) as similarity
             FROM cv c
             CROSS JOIN LATERAL (
-                SELECT id as job_id, data, canonical_text, embedding
+                SELECT id as job_id, canonical_json, canonical_text, embedding
                 FROM job j
                 WHERE j.embedding_status = 'completed'
                 ORDER BY j.embedding <=> c.embedding
@@ -113,7 +106,7 @@ class BatchMatcher:
             AND c.embedding_status = 'completed'
         """)
 
-        results = session.exec(query, {"cv_ids": cv_ids, "top_k": top_k}).all()
+        results = session.exec(query, params={"cv_ids": cv_ids, "top_k": top_k}).all()
         return results
 
     def group_matches_by_cv(
@@ -147,51 +140,14 @@ class BatchMatcher:
 
         return dict(matches_by_cv)
 
-    def prepare_explanation_requests(
-        self,
-        prediction_id: str,
-        cv_text: str,
-        matches: List[Dict[str, Any]],
-        model: str = "gpt-3.5-turbo"
-    ) -> List[Dict[str, Any]]:
-        """
-        Prepare batch explanation requests for OpenAI API.
-
-        Args:
-            prediction_id: Unique prediction ID
-            cv_text: CV text representation
-            matches: List of job matches
-            model: OpenAI model to use
-
-        Returns:
-            List of batch request objects for OpenAI
-        """
-        requests = []
-
-        for m in matches:
-            req_id = f"pred-{prediction_id}-job-{m['job_id']}"
-            prompt = f"Explain why this candidate is a good match for the job.\nCandidate: {cv_text[:500]}\nJob: {m['job_text'][:500]}\nMatch Score: {m['similarity']:.2f}"
-
-            requests.append({
-                "custom_id": req_id,
-                "method": "POST",
-                "url": "/v1/chat/completions",
-                "body": {
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 150
-                }
-            })
-
-        return requests
 
     def create_predictions_bulk(
         self,
         session: Session,
         matches_by_cv: Dict[int, Dict[str, Any]]
-    ) -> tuple[List[Prediction], List[CV], List[Dict[str, Any]]]:
+    ) -> tuple[List[Prediction], List[CV]]:
         """
-        Create prediction records and prepare explanation requests in bulk.
+        Create prediction records in bulk.
 
         OPTIMIZATION: Single pass through data, no nested loops.
 
@@ -200,11 +156,10 @@ class BatchMatcher:
             matches_by_cv: Grouped matches from group_matches_by_cv
 
         Returns:
-            Tuple of (predictions_to_add, cvs_to_update, explanation_requests)
+            Tuple of (predictions_to_add, cvs_to_update)
         """
         predictions_to_add = []
         cvs_to_update = []
-        explanation_requests = []
         current_time = datetime.utcnow()
 
         for cv_id, data in matches_by_cv.items():
@@ -214,14 +169,18 @@ class BatchMatcher:
                 continue
 
             prediction_id = str(uuid.uuid4())
-            cv_text = data["cv_text"]
             matches = data["matches"]
 
-            # Create prediction
+            # Check if this is the CV's first prediction
+            is_first = cv.last_analyzed is None
+
+            # Create prediction with generation tracking
             prediction = Prediction(
                 prediction_id=prediction_id,
                 cv_id=str(cv.id),
-                matches=matches
+                matches=matches,
+                matching_completed_at=current_time,  # Track when matching completed
+                is_first_prediction=is_first  # Track if this is first-time CV
             )
             predictions_to_add.append(prediction)
 
@@ -229,61 +188,8 @@ class BatchMatcher:
             cv.last_analyzed = current_time
             cvs_to_update.append(cv)
 
-            # Prepare explanation requests
-            requests = self.prepare_explanation_requests(
-                prediction_id=prediction_id,
-                cv_text=cv_text,
-                matches=matches
-            )
-            explanation_requests.extend(requests)
+        return predictions_to_add, cvs_to_update
 
-        return predictions_to_add, cvs_to_update, explanation_requests
-
-    def submit_batch_explanations(
-        self,
-        session: Session,
-        explanation_requests: List[Dict[str, Any]]
-    ) -> Optional[BatchRequest]:
-        """
-        Submit explanation requests to OpenAI Batch API.
-
-        Args:
-            session: Database session
-            explanation_requests: List of explanation requests
-
-        Returns:
-            BatchRequest record or None if failed
-        """
-        if not explanation_requests:
-            return None
-
-        try:
-            timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-            filename = f"batch_explanations_{timestamp}.jsonl"
-            file_path = f"/tmp/{filename}"
-
-            self.batch_service.create_batch_file(explanation_requests, file_path)
-            file_id = self.batch_service.upload_batch_file(file_path)
-
-            batch_req = self.batch_service.create_batch(
-                input_file_id=file_id,
-                endpoint="/v1/chat/completions",
-                metadata={"type": "explanation", "count": str(len(explanation_requests))}
-            )
-
-            session.add(batch_req)
-            session.commit()
-
-            # Cleanup temp file
-            if os.path.exists(file_path):
-                os.remove(file_path)
-
-            logger.info(f"Submitted explanation batch {batch_req.batch_api_id} with {len(explanation_requests)} items")
-            return batch_req
-
-        except Exception as e:
-            logger.error(f"Failed to submit explanation batch: {e}")
-            return None
 
     def process_batch_matches(
         self,
@@ -327,7 +233,7 @@ class BatchMatcher:
             matches_by_cv = self.group_matches_by_cv(results)
 
             # Step 4: Create predictions in bulk
-            predictions_to_add, cvs_to_update, explanation_requests = \
+            predictions_to_add, cvs_to_update = \
                 self.create_predictions_bulk(session, matches_by_cv)
 
             # Step 5: Save to database
@@ -337,13 +243,16 @@ class BatchMatcher:
 
             logger.info(f"Created {len(predictions_to_add)} predictions for {len(cvs_to_update)} CVs")
 
-            # Step 6: Submit explanation batch
-            if explanation_requests:
-                batch_req = self.submit_batch_explanations(session, explanation_requests)
+            # Step 6: Submit explanation batch using SimpleBatchExplainer
+            if predictions_to_add:
+                from core.matching.batch_explainer import SimpleBatchExplainer
+                explainer = SimpleBatchExplainer()
+                batch_req = explainer.submit_batch_explanation_job(predictions_to_add, session)
                 if batch_req:
-                    return f"Submitted explanation batch {batch_req.batch_api_id} with {len(explanation_requests)} items"
+                    logger.info(f"Submitted simple explanation batch {batch_req.batch_api_id}")
+                    return f"Processed {len(predictions_to_add)} predictions, submitted explanation batch {batch_req.batch_api_id}"
 
-            return f"Processed {len(predictions_to_add)} predictions, no explanations needed"
+            return f"Processed {len(predictions_to_add)} predictions"
 
         except Exception as e:
             logger.error(f"Batch matching failed: {e}")

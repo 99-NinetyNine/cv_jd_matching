@@ -13,6 +13,7 @@ import logging
 
 from core.services.batch_service import BatchService
 from core.db.models import Prediction, BatchRequest
+from core.cache.redis_cache import redis_client
 from sqlmodel import Session, select
 
 logger = logging.getLogger(__name__)
@@ -175,6 +176,10 @@ Write ONLY ONE sentence, max 15 words:
                 logger.error(f"Failed to parse result {custom_id}: {e}")
                 stats["failed"] += 1
 
+        # Track CVs that need cache invalidation
+        updated_cv_ids = set()
+        explanation_completion_time = datetime.utcnow()
+
         # Update predictions
         for pred_id, job_explanations in explanations.items():
             prediction = session.exec(
@@ -182,12 +187,27 @@ Write ONLY ONE sentence, max 15 words:
             ).first()
 
             if prediction:
+                # Track the CV ID for cache invalidation
+                updated_cv_ids.add(prediction.cv_id)
+
                 for match in prediction.matches:
                     job_id = str(match.get("job_id"))
                     if job_id in job_explanations:
                         match["explanation"] = job_explanations[job_id]
+
+                # Set explanation completion timestamp
+                prediction.explanation_completed_at = explanation_completion_time
                 session.add(prediction)
 
         session.commit()
+        
+        # Clear Redis cache for updated CVs
+        strategy = "pgvector"  # Match the strategy used in candidate.py
+        for cv_id in updated_cv_ids:
+            cache_key = f"match_results:{strategy}:{cv_id}"
+            redis_client.delete(cache_key)
+            logger.info(f"Cleared cache for CV {cv_id} after explanation update")
+        
         logger.info(f"Processed simple explanations: {stats}")
+        logger.info(f"Cleared cache for {len(updated_cv_ids)} CVs")
         return stats
