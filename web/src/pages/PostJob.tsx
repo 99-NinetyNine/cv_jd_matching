@@ -44,12 +44,17 @@ const PostJob = () => {
                 return;
             }
 
-            // Process lists
+            // Process lists - skills need to be objects with name, level, keywords
             const payload = {
                 ...formData,
-                skills: formData.skills.split(',').map(s => s.trim()).filter(Boolean),
+                skills: formData.skills.split(',').map(s => ({
+                    name: s.trim(),
+                    level: '',
+                    keywords: []
+                })).filter(s => s.name),
                 benefits: formData.benefits.split(',').map(s => s.trim()).filter(Boolean),
                 responsibilities: formData.responsibilities.split(',').map(s => s.trim()).filter(Boolean),
+                qualifications: formData.qualifications.split(',').map(s => s.trim()).filter(Boolean),
                 company_size: formData.company_size ? parseInt(formData.company_size) : undefined,
                 job_posting_date: new Date().toISOString()
             };

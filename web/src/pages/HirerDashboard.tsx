@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { Briefcase, Users, CheckCircle, XCircle, Clock, Eye, ChevronDown, ChevronUp, Crown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { api } from '../utils/api';
 
 interface Application {
     id: number;
@@ -25,7 +25,7 @@ interface Job {
     job_id: string;
     title: string;
     company: string;
-    location?: string;
+    location?: string | any;
     created_at: string;
 }
 
@@ -41,8 +41,6 @@ const HirerDashboard = () => {
         const stored = localStorage.getItem('isPremium');
         return stored === 'true';
     });
-
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
     const togglePremium = () => {
         const newPremiumStatus = !isPremium;
@@ -62,7 +60,7 @@ const HirerDashboard = () => {
 
     const fetchJobs = async () => {
         try {
-            const response = await axios.get(`${apiUrl}/jobs`);
+            const response = await api.get('/jobs');
             setJobs(response.data.jobs);
         } catch (error) {
             console.error('Failed to fetch jobs:', error);
@@ -72,10 +70,8 @@ const HirerDashboard = () => {
     const fetchApplications = async (jobId: string) => {
         setLoading(true);
         try {
-            const url = statusFilter !== 'all'
-                ? `${apiUrl}/jobs/${jobId}/applications?status_filter=${statusFilter}`
-                : `${apiUrl}/jobs/${jobId}/applications`;
-            const response = await axios.get(url);
+            const params = statusFilter !== 'all' ? { status_filter: statusFilter } : {};
+            const response = await api.get(`/jobs/${jobId}/applications`, { params });
             setApplications(response.data.applications);
         } catch (error) {
             console.error('Failed to fetch applications:', error);
@@ -84,9 +80,26 @@ const HirerDashboard = () => {
         }
     };
 
+    const logInteraction = async (jobId: string, applicationId: number, action: 'shortlisted' | 'interviewed' | 'hired' | 'rejected') => {
+        try {
+            await api.post('/interactions/log', {
+                job_id: jobId,
+                action: action,
+                application_id: applicationId,
+                metadata: {
+                    source: 'hirer_dashboard',
+                    timestamp: new Date().toISOString()
+                }
+            });
+            console.log(`✓ Logged: ${action} for application ${applicationId}`);
+        } catch (error) {
+            console.error('Failed to log interaction:', error);
+        }
+    };
+
     const handleAccept = async (jobId: string, applicationId: number) => {
         try {
-            await axios.post(`${apiUrl}/jobs/${jobId}/applications/${applicationId}/accept`);
+            await logInteraction(jobId, applicationId, 'hired');
             fetchApplications(jobId);  // Refresh
         } catch (error) {
             console.error('Failed to accept application:', error);
@@ -95,10 +108,28 @@ const HirerDashboard = () => {
 
     const handleReject = async (jobId: string, applicationId: number) => {
         try {
-            await axios.post(`${apiUrl}/jobs/${jobId}/applications/${applicationId}/reject`);
+            await logInteraction(jobId, applicationId, 'rejected');
             fetchApplications(jobId);  // Refresh
         } catch (error) {
             console.error('Failed to reject application:', error);
+        }
+    };
+
+    const handleShortlist = async (jobId: string, applicationId: number) => {
+        try {
+            await logInteraction(jobId, applicationId, 'shortlisted');
+            fetchApplications(jobId);  // Refresh to show updated status
+        } catch (error) {
+            console.error('Failed to shortlist application:', error);
+        }
+    };
+
+    const handleInterview = async (jobId: string, applicationId: number) => {
+        try {
+            await logInteraction(jobId, applicationId, 'interviewed');
+            fetchApplications(jobId);  // Refresh to show updated status
+        } catch (error) {
+            console.error('Failed to mark as interviewed:', error);
         }
     };
 
@@ -121,6 +152,8 @@ const HirerDashboard = () => {
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'pending': return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+            case 'shortlisted': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+            case 'interviewed': return 'bg-blue-50 text-blue-700 border-blue-200';
             case 'accepted': return 'bg-green-50 text-green-700 border-green-200';
             case 'rejected': return 'bg-red-50 text-red-700 border-red-200';
             default: return 'bg-slate-50 text-slate-700 border-slate-200';
@@ -150,8 +183,8 @@ const HirerDashboard = () => {
                     <button
                         onClick={togglePremium}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${isPremium
-                                ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white shadow-md'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white shadow-md'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                             }`}
                     >
                         <Crown size={16} />
@@ -194,7 +227,15 @@ const HirerDashboard = () => {
                                         <div className="font-medium text-slate-900">{job.title}</div>
                                         <div className="text-sm text-slate-500 mt-1">{job.company}</div>
                                         {job.location && (
-                                            <div className="text-xs text-slate-400 mt-1">{job.location}</div>
+                                            <div className="text-xs text-slate-400 mt-1">
+                                                {typeof job.location === 'object'
+                                                    ? [
+                                                        (job.location as any).city,
+                                                        (job.location as any).region,
+                                                        (job.location as any).countryCode
+                                                    ].filter(Boolean).join(', ') || 'Remote'
+                                                    : job.location}
+                                            </div>
                                         )}
                                     </button>
                                 ))}
@@ -212,7 +253,7 @@ const HirerDashboard = () => {
                                         Applications ({applications.length})
                                     </h2>
                                     <div className="flex gap-2">
-                                        {['all', 'pending', 'accepted', 'rejected'].map(status => (
+                                        {['all', 'pending', 'shortlisted', 'interviewed', 'accepted', 'rejected'].map(status => (
                                             <button
                                                 key={status}
                                                 onClick={() => setStatusFilter(status)}
@@ -273,19 +314,35 @@ const HirerDashboard = () => {
 
                                                     {/* Action Buttons */}
                                                     {app.status === 'pending' && (
-                                                        <div className="flex gap-2 mt-4">
-                                                            <button
-                                                                onClick={() => handleAccept(app.job_id, app.id)}
-                                                                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm flex items-center justify-center gap-2"
-                                                            >
-                                                                <CheckCircle size={16} /> Accept
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleReject(app.job_id, app.id)}
-                                                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm flex items-center justify-center gap-2"
-                                                            >
-                                                                <XCircle size={16} /> Reject
-                                                            </button>
+                                                        <div className="space-y-2 mt-4">
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => handleShortlist(app.job_id, app.id)}
+                                                                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm flex items-center justify-center gap-2"
+                                                                >
+                                                                    <Eye size={16} /> Shortlist
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleInterview(app.job_id, app.id)}
+                                                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm flex items-center justify-center gap-2"
+                                                                >
+                                                                    <Clock size={16} /> Interview
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => handleAccept(app.job_id, app.id)}
+                                                                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm flex items-center justify-center gap-2"
+                                                                >
+                                                                    <CheckCircle size={16} /> Hire
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleReject(app.job_id, app.id)}
+                                                                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm flex items-center justify-center gap-2"
+                                                                >
+                                                                    <XCircle size={16} /> Reject
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>

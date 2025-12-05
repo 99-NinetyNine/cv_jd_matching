@@ -1,41 +1,40 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Activity, LayoutDashboard, RefreshCw } from 'lucide-react';
+import { Activity, LayoutDashboard, RefreshCw, Briefcase, Database } from 'lucide-react';
 import { HealthStatus } from '../components/admin/HealthStatus';
 import { EvaluationTab } from '../components/admin/EvaluationTab';
 import { PerformanceTab } from '../components/admin/PerformanceTab';
 import { BatchJobsTable } from '../components/admin/BatchJobsTable';
+import { CacheMetricsTab } from '../components/admin/CacheMetricsTab';
+import { api } from '../utils/api';
 
 const AdminDashboard = () => {
-    const [activeTab, setActiveTab] = useState<'evaluation' | 'performance'>('evaluation');
+    const [activeTab, setActiveTab] = useState<'evaluation' | 'performance' | 'batches' | 'cache'>('evaluation');
     const [healthData, setHealthData] = useState<any>(null);
     const [evalData, setEvalData] = useState<any>(null);
     const [perfData, setPerfData] = useState<any>(null);
+    const [cacheData, setCacheData] = useState<any>(null);
     const [batches, setBatches] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
     const fetchData = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const headers = { Authorization: `Bearer ${token}` };
-
             // Fetch health first
-            const healthRes = await axios.get(`${apiUrl}/admin/system_health`, { headers });
+            const healthRes = await api.get('/admin/system_health');
             setHealthData(healthRes.data);
 
             // Fetch other data in parallel
-            const [evalRes, perfRes, batchesRes] = await Promise.all([
-                axios.get(`${apiUrl}/admin/evaluation_metrics`, { headers }),
-                axios.get(`${apiUrl}/admin/performance_dashboard`, { headers }),
-                axios.get(`${apiUrl}/admin/batches`, { headers })
+            const [evalRes, perfRes, cacheRes, batchesRes] = await Promise.all([
+                api.get('/admin/evaluation_metrics'),
+                api.get('/admin/performance_dashboard'),
+                api.get('/admin/cache_metrics'),
+                api.get('/admin/batches')
             ]);
 
             setEvalData(evalRes.data);
             setPerfData(perfRes.data);
-            setBatches(batchesRes.data);
+            setCacheData(cacheRes.data);
+            setBatches(batchesRes.data.batches || []);
         } catch (err) {
             console.error("Failed to fetch dashboard data", err);
         } finally {
@@ -46,7 +45,7 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         fetchData();
-    }, [apiUrl]);
+    }, []);
 
     const handleRefresh = () => {
         setRefreshing(true);
@@ -55,8 +54,7 @@ const AdminDashboard = () => {
 
     const handleTriggerBatch = async (type: string) => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${apiUrl}/admin/batches/trigger`, { type }, { headers: { Authorization: `Bearer ${token}` } });
+            await api.post('/admin/batches/trigger', null, { params: { batch_type: type } });
             alert("Batch submission triggered!");
             handleRefresh();
         } catch (e) { alert("Failed to trigger batch"); }
@@ -64,8 +62,7 @@ const AdminDashboard = () => {
 
     const handleCheckBatchStatus = async () => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${apiUrl}/admin/batches/check`, {}, { headers: { Authorization: `Bearer ${token}` } });
+            await api.post('/admin/batches/check');
             alert("Status check triggered!");
             handleRefresh();
         } catch (e) { alert("Failed to check status"); }
@@ -121,23 +118,49 @@ const AdminDashboard = () => {
                             <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />
                         )}
                     </button>
+                    <button
+                        onClick={() => setActiveTab('batches')}
+                        className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 transition-colors relative ${activeTab === 'batches' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                    >
+                        <Briefcase size={18} />
+                        Batch Processing
+                        {activeTab === 'batches' && (
+                            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('cache')}
+                        className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 transition-colors relative ${activeTab === 'cache' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                    >
+                        <Database size={18} />
+                        Cache Performance
+                        {activeTab === 'cache' && (
+                            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full" />
+                        )}
+                    </button>
                 </div>
 
                 {/* Tab Content */}
                 <div className="mb-12">
-                    {activeTab === 'evaluation' ? (
+                    {activeTab === 'evaluation' && (
                         <EvaluationTab data={evalData} loading={loading} />
-                    ) : (
+                    )}
+                    {activeTab === 'performance' && (
                         <PerformanceTab data={perfData} loading={loading} />
                     )}
+                    {activeTab === 'batches' && (
+                        <BatchJobsTable
+                            batches={batches}
+                            onTrigger={handleTriggerBatch}
+                            onCheckStatus={handleCheckBatchStatus}
+                        />
+                    )}
+                    {activeTab === 'cache' && (
+                        <CacheMetricsTab data={cacheData} loading={loading} />
+                    )}
                 </div>
-
-                {/* Batch Management (Always Visible) */}
-                <BatchJobsTable
-                    batches={batches}
-                    onTrigger={handleTriggerBatch}
-                    onCheckStatus={handleCheckBatchStatus}
-                />
             </div>
         </div>
     );

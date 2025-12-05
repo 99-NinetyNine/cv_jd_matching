@@ -1,10 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import axios from 'axios';
 import { Briefcase, Crown } from 'lucide-react';
 import { StatusIndicator } from '../components/candidate/StatusIndicator';
 import { UploadSection } from '../components/candidate/UploadSection';
 import { ReviewSection } from '../components/candidate/ReviewSection';
 import { ResultsSection } from '../components/candidate/ResultsSection';
+import { AIReasoningPanel } from '../components/candidate/AIReasoningPanel';
+import { AIInsightsDisplay } from '../components/candidate/AIInsightsDisplay';
+import { api, API_URL } from '../utils/api';
 
 interface Match {
     job_id: string;
@@ -12,11 +14,11 @@ interface Match {
     company: string;
     match_score: number;
     explanation?: string | null;
-    location?: string;
+    location?: string | any;
     salary_range?: string;
 }
 
-type ProcessingStatus = 'idle' | 'uploading' | 'parsing' | 'reviewing' | 'matching' | 'complete' | 'submitted';
+type ProcessingStatus = 'idle' | 'uploading' | 'parsing' | 'reviewing' | 'matching' | 'ai_analyzing' | 'complete' | 'submitted';
 
 const CandidateDashboard = () => {
     const [file, setFile] = useState<File | null>(null);
@@ -28,12 +30,18 @@ const CandidateDashboard = () => {
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['basics']));
     const [cvId, setCvId] = useState<string | null>(null);
     const [predictionId, setPredictionId] = useState<string | null>(null);
+    const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
+    const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
     const [isPremium, setIsPremium] = useState<boolean>(() => {
         const stored = localStorage.getItem('isPremium');
         return stored === 'true';
     });
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    // Premium AI Analysis State
+    const [showAIAnalysis, setShowAIAnalysis] = useState(false);
+    const [aiInsights, setAiInsights] = useState<any>(null);
+
+    const apiUrl = API_URL;
 
     const togglePremium = () => {
         const newPremiumStatus = !isPremium;
@@ -79,33 +87,55 @@ const CandidateDashboard = () => {
         }
     };
 
-    const logInteraction = async (jobId: string, action: 'viewed' | 'applied' | 'saved') => {
-        if (!cvId) return;
+    const logInteraction = async (jobId: string, action: 'viewed' | 'applied' | 'saved'): Promise<boolean> => {
+        if (!cvId) return false;
 
         try {
-            await axios.post(`${apiUrl}/interact`, {
-                user_id: cvId, // Using CV ID as user identifier for now
+            const response = await api.post('/interactions/log', {
                 job_id: jobId,
                 action: action,
-                strategy: 'pgvector',
+                cv_id: cvId,
                 prediction_id: predictionId,
-                cv_id: cvId
+                metadata: {
+                    source: 'dashboard',
+                    timestamp: new Date().toISOString()
+                }
             });
-            console.log(`✓ Logged: ${action} for job ${jobId}`);
+
+            // Check if the interaction was successful
+            if (response.data.status === 'success') {
+                console.log(`✓ Logged: ${action} for job ${jobId}`);
+                return true;
+            } else if (response.data.status === 'already_exists') {
+                console.log(`⚠ Already ${action}: job ${jobId}`);
+                return false;
+            }
+            return false;
         } catch (err) {
             console.error('Failed to log interaction:', err);
+            return false;
         }
     };
 
     const handleApply = async (jobId: string) => {
-        await logInteraction(jobId, 'applied');
-        // Silent - no alert
+        const success = await logInteraction(jobId, 'applied');
+        if (success) {
+            setAppliedJobs(prev => new Set(prev).add(jobId));
+        }
     };
 
     const handleSaveJob = async (jobId: string) => {
-        await logInteraction(jobId, 'saved');
-        // Silent - no alert
+        const success = await logInteraction(jobId, 'saved');
+        if (success) {
+            setSavedJobs(prev => new Set(prev).add(jobId));
+        }
     };
+
+    const handleAIAnalysisComplete = useCallback((results: any) => {
+        console.log('✓ AI Analysis Complete:', results);
+        setAiInsights(results);
+        setStatus('complete');
+    }, []);
 
     const handleUpload = async () => {
         if (!file) return;
@@ -121,7 +151,7 @@ const CandidateDashboard = () => {
             if (isPremium) {
                 // PREMIUM FLOW: WebSocket
                 // 1. Upload
-                const uploadRes = await axios.post(`${apiUrl}/upload`, formData, {
+                const uploadRes = await api.post('/upload', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 const uploadedCvId = uploadRes.data.cv_id;
@@ -149,17 +179,26 @@ const CandidateDashboard = () => {
                         setStatus('matching');
                     } else if (data.status === "complete") {
                         setMatches(data.matches);
-                        setStatus('complete');
                         // Store prediction_id from backend
                         if (data.prediction_id) {
                             setPredictionId(data.prediction_id);
                             console.log(`✓ Prediction ID: ${data.prediction_id}`);
                         }
                         // Log 'viewed' for all matches with prediction_id
-                        data.matches.forEach((match: Match) => {
-                            logInteraction(match.job_id, 'viewed');
-                        });
+                        if (data.matches && data.matches.length > 0) {
+                            data.matches.forEach((match: Match) => {
+                                logInteraction(match.job_id, 'viewed');
+                            });
+                        }
                         ws.close();
+
+                        // Premium: Trigger AI Analysis
+                        if (isPremium) {
+                            setStatus('ai_analyzing');
+                            setShowAIAnalysis(true);
+                        } else {
+                            setStatus('complete');
+                        }
                     } else if (data.status === "error") {
                         setError(data.message);
                         setStatus('idle');
@@ -178,7 +217,7 @@ const CandidateDashboard = () => {
                 };
             } else {
                 // NON-PREMIUM FLOW: Simple Upload
-                await axios.post(`${apiUrl}/upload_and_parse`, formData, {
+                await api.post('/upload', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 setStatus('submitted');
@@ -223,17 +262,26 @@ const CandidateDashboard = () => {
     // Fetch recommendations on mount (only for premium/returning users really, but good to have)
     React.useEffect(() => {
         // Only fetch if we think we have a session or something, but for now let's just try
-        // If non-premium, maybe we shouldn't auto-fetch? 
+        // If non-premium, maybe we shouldn't auto-fetch?
         // But the requirement is just about the upload flow.
         // Let's keep it as is, but maybe handle 404 gracefully.
 
         setStatus('matching'); // Show loading state
 
-        axios.get(`${apiUrl}/recommendations`)
+        api.get('/recommendations')
             .then(res => {
-                setMatches(res.data.matches);
+                setMatches(res.data.recommendations);
                 setPredictionId(res.data.prediction_id);
                 setCvId(res.data.cv_id);
+
+                // Use applied/saved state from API response
+                if (res.data.applied_jobs) {
+                    setAppliedJobs(new Set(res.data.applied_jobs));
+                }
+                if (res.data.saved_jobs) {
+                    setSavedJobs(new Set(res.data.saved_jobs));
+                }
+
                 setStatus('complete');
             })
             .catch(err => {
@@ -241,7 +289,7 @@ const CandidateDashboard = () => {
                 // No CV found - show upload form
                 setStatus('idle');
             });
-    }, [apiUrl]);
+    }, []);
 
 
     return (
@@ -341,12 +389,34 @@ const CandidateDashboard = () => {
                     </div>
                 )}
 
+                {/* Premium AI Analysis Panel (Streaming) */}
+                {showAIAnalysis && cvId && isPremium && (
+                    <div className="mb-8">
+                        <AIReasoningPanel
+                            cvId={cvId}
+                            onComplete={handleAIAnalysisComplete}
+                        />
+                    </div>
+                )}
+
+                {/* AI Insights Display (Results) */}
+                {aiInsights && isPremium && (
+                    <AIInsightsDisplay
+                        qualityScore={aiInsights.quality_score}
+                        contrastiveExplanation={aiInsights.contrastive_explanation}
+                        counterfactualSuggestions={aiInsights.counterfactual_suggestions}
+                        cotReasoning={aiInsights.cot_reasoning}
+                    />
+                )}
+
                 {/* Results Section */}
                 {matches.length > 0 && (
                     <ResultsSection
                         matches={matches}
                         onApply={handleApply}
                         onSave={handleSaveJob}
+                        appliedJobs={appliedJobs}
+                        savedJobs={savedJobs}
                     />
                 )}
             </main>
