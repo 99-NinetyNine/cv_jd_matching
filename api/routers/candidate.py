@@ -5,30 +5,25 @@ from fastapi import (
     HTTPException,
     Depends,
     WebSocket,
-    WebSocketDisconnect,
 )
 from pathlib import Path
 import uuid
 import json
 from sqlmodel import Session, select
-from pydantic import BaseModel
-from typing import Optional, Literal
+from typing import Literal
 from core.db.engine import get_session
-from core.db.models import Job, CV, ParsingCorrection, UserInteraction, Prediction, User
+from core.db.models import CV, UserInteraction, Prediction, User
 from core.matching.semantic_matcher import GraphMatcher
 from core.cache.redis_cache import redis_client
-from core.monitoring.metrics import log_metric
-from core.matching.embeddings import EmbeddingFactory
 from core.services.cv_service import (
     get_or_parse_cv,
-    compute_cv_embedding,
     update_cv_with_corrections,
 )
 from api.routers.auth import get_current_user
-import numpy as np
 import logging
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)  # ensure level is INFO
 
 router = APIRouter(tags=["candidate"])
 
@@ -39,47 +34,45 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 @router.post("/upload")
 async def upload_cv(
     file: UploadFile = File(...),
-    action: Literal[
-        "upload", "parse", "match"
-    ] = "upload",  # only these values allowed
+    action: Literal["upload", "parse", "match"] = "upload",
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """
     Upload and process a candidate's CV with multiple action modes.
-    
+
     This endpoint handles CV upload with three processing levels:
     - **upload**: Only saves the file and creates a CV record
     - **parse**: Uploads and parses the CV to extract structured data
     - **match**: Full processing including parsing and job matching
-    
-    Args:
-        file: PDF file upload (max 5MB)
-        action: Processing level - "upload", "parse", or "match"
-        session: Database session (injected)
-        current_user: Authenticated user (injected)
-    
-    Returns:
-        dict: Response varies by action:
-            - upload: cv_id, filename, path
-            - parse: cv_id, filename, path, parsed data
-            - match: complete matching results with recommendations
-    
-    Raises:
-        HTTPException: 400 if file is not PDF or exceeds size limit
-        HTTPException: 401 if user is not authenticated
-    
-    Example:
-        ```python
-        # Upload only
-        POST /candidate/upload?action=upload
-        
-        # Parse CV
-        POST /candidate/upload?action=parse
-        
-        # Full analysis with job matching
-        POST /candidate/upload?action=match
-        ```
+
+    **Query Parameters:**
+    - action: Processing level - "upload", "parse", or "match" (default: "upload")
+
+    **File Requirements:**
+    - Format: PDF only
+    - Max size: 5MB
+
+    **Returns:**
+    - action=upload: CVUploadResponse (cv_id, filename, path)
+    - action=parse: CVParseResponse (includes parsed data)
+    - action=match: RecommendationsResponse (full matching results)
+
+    **Raises:**
+    - 400: File not PDF or exceeds size limit
+    - 401: User not authenticated
+
+    **Example:**
+    ```bash
+    # Upload only
+    POST /candidate/upload?action=upload
+
+    # Parse CV
+    POST /candidate/upload?action=parse
+
+    # Full analysis with job matching
+    POST /candidate/upload?action=match
+    ```
     """
     # Validation
     if file.content_type != "application/pdf":
@@ -112,7 +105,7 @@ async def upload_cv(
         filename=filename,
         content={},
         embedding_status="pending",
-        parsing_status="pending",
+        parsing_status="pending_batch",
         is_latest=True,
         owner_id=current_user.id,  # Link CV to authenticated user
     )
@@ -146,10 +139,17 @@ async def upload_cv(
         if not cv or not cv.content:
             return {"status": "error", "message": "CV not found"}
 
-        # Match using GraphMatcher
+        # Match using GraphMatcher with performance tracking
+        import time
+        start_time = time.perf_counter()
+
         matcher = GraphMatcher(strategy=strategy)
         matches = matcher.match(cv_data=data)
 
+        # Calculate recommendation generation time
+        generation_time_ms = (time.perf_counter() - start_time) * 1000
+
+        cv.embedding_status = "completed"
         # Cache results
         redis_client.set(cache_key, json.dumps(matches), ttl=3600)
 
@@ -164,15 +164,10 @@ async def upload_cv(
         session.commit()
 
         logger.info(
-            f"Generated prediction_id {prediction_id} for CV {cv_id} with {len(matches)} matches"
+            f"Generated prediction_id {prediction_id} for CV {cv_id} with {len(matches)} matches in {generation_time_ms:.2f}ms"
         )
 
-        # Log metric
-        log_metric(
-            "recommendation_count",
-            len(matches),
-            {"cv_id": cv_id, "prediction_id": prediction_id},
-        )
+      
 
     # Extract candidate name from CV data
     candidate_name = "Unknown"
@@ -256,7 +251,7 @@ async def websocket_endpoint(
         # TODO: not cv last updated but the cv's owner last cv matchd date
         needs_update = True
         if is_premium is False:
-            last_updated = user.last_cv_matchd
+            last_updated = user.last_cv_analyzed
             if last_updated:
                 delta = datetime.datetime.utcnow() - last_updated
                 if delta.days < 30:
@@ -291,7 +286,7 @@ async def websocket_endpoint(
 
                 # Match using GraphMatcher
                 matcher = GraphMatcher(strategy=strategy)
-                matches = matcher.match(cv_id=cv_id)
+                matches = matcher.match(cv_data=cv.content)
 
                 # Cache results
                 redis_client.set(cache_key, json.dumps(matches), ttl=3600)
@@ -310,12 +305,7 @@ async def websocket_endpoint(
                     f"Generated prediction_id {prediction_id} for CV {cv_id} with {len(matches)} matches"
                 )
 
-                # Log metric
-                log_metric(
-                    "recommendation_count",
-                    len(matches),
-                    {"cv_id": cv_id, "prediction_id": prediction_id},
-                )
+             
             else:
                 # Batch Mode - Queue for batch processing
                 cv.embedding_status = "pending_batch"
@@ -352,6 +342,7 @@ async def websocket_endpoint(
                 "status": "complete",
                 "candidate_id": cv_id,
                 "candidate_name": candidate_name,
+                "matches": matches,  # For frontend compatibility
                 "recommendations": matches,  # Renamed from 'matches' to match spec
                 "prediction_id": prediction_id,  # Send to frontend
                 "cv_id": cv_id,
@@ -362,40 +353,42 @@ async def websocket_endpoint(
         await websocket.send_json({"status": "error", "message": str(e)})
 
 
-@router.get("/recommendations")
+@router.get("/recommendations",)
 async def get_recommendations(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-):
+) :
     """
-    Get job recommendations for the authenticated user's latest CV.
-    
-    This endpoint retrieves personalized job recommendations based on the user's
-    most recent CV. It uses a multi-tier caching strategy for optimal performance:
-    1. Redis cache for fast retrieval
-    2. Database predictions for persistence
-    3. Real-time computation as fallback
-    
-    Args:
-        session: Database session (injected)
-        current_user: Authenticated user (injected)
-    
-    Returns:
-        dict: Contains:
-            - candidate_id: CV identifier
-            - candidate_name: Extracted from CV
-            - recommendations: List of matched jobs with scores
-            - prediction_id: Unique identifier for this recommendation set
-            - count: Number of recommendations
-    
-    Raises:
-        HTTPException: 404 if no CV found for user
-        HTTPException: 400 if CV not yet parsed
-        HTTPException: 401 if user not authenticated
-    
-    Note:
-        Only returns recommendations for CVs owned by the authenticated user.
-        Requires CV embedding_status to be "completed".
+    Get personalized job recommendations for the authenticated user.
+
+    Retrieves job recommendations based on the user's latest CV using a
+    multi-tier caching strategy for optimal performance:
+
+    **Retrieval Strategy:**
+    1. Redis cache (fastest)
+    2. Database predictions (persistent)
+    3. Real-time computation (fallback)
+
+    **Returns:** Personalized job recommendations with match scores and explanations
+
+    **Requirements:**
+    - User must have uploaded and parsed a CV
+    - CV embedding must be completed
+    - Only shows recommendations for user's own CV
+
+    **Response includes:**
+    - candidate_id: Your CV identifier
+    - candidate_name: Name from your CV
+    - recommendations: List of matched jobs with scores and details
+    - prediction_id: Unique session identifier
+    - count: Total number of recommendations
+    - applied_jobs: List of job IDs user has applied to
+    - saved_jobs: List of job IDs user has saved
+
+    **Raises:**
+    - 404: No CV found (please upload a CV first)
+    - 400: CV not yet parsed
+    - 401: Not authenticated
     """
     # 1. Find the latest CV for the authenticated user
     cv = session.exec(
@@ -413,6 +406,15 @@ async def get_recommendations(
 
     cv_id = str(cv.id)
 
+    # 1.5 Get user's interaction history (applied/saved jobs)
+    user_interactions = session.exec(
+        select(UserInteraction)
+        .where(UserInteraction.user_id == current_user.id)
+    ).all()
+
+    applied_jobs = [i.job_id for i in user_interactions if i.action == "applied"]
+    saved_jobs = [i.job_id for i in user_interactions if i.action == "saved"]
+
     # 2. Check Cache
     strategy = "pgvector"
     cache_key = f"match_results:{strategy}:{cv_id}"
@@ -421,6 +423,7 @@ async def get_recommendations(
     if cached_results:
         matches = json.loads(cached_results)
         logger.info(f"Returning cached matches for CV {cv_id}")
+        print(f"Returning cached matches for CV {cv_id}")
 
         # Get prediction_id from DB
         latest_prediction = session.exec(
@@ -441,9 +444,12 @@ async def get_recommendations(
             "candidate_name": candidate_name,
             "recommendations": matches,
             "prediction_id": (
-                latest_prediction.prediction_id if latest_prediction else None
+                latest_prediction.prediction_id if latest_prediction else str(uuid.uuid4())
             ),
+            "cv_id": cv_id,
             "count": len(matches),
+            "applied_jobs": applied_jobs,
+            "saved_jobs": saved_jobs,
         }
 
     # 3. Check DB for recent predictions
@@ -474,9 +480,52 @@ async def get_recommendations(
             "candidate_name": candidate_name,
             "recommendations": matches,
             "prediction_id": prediction_id,
+            "cv_id": cv_id,
             "count": len(matches),
+            "applied_jobs": applied_jobs,
+            "saved_jobs": saved_jobs,
         }
-
     # 4. No cached or stored results - compute new matches
     if not cv.content:
         raise HTTPException(status_code=400, detail="CV content not parsed yet")
+
+    # Match using GraphMatcher
+    matcher = GraphMatcher(strategy=strategy)
+    matches = matcher.match(cv_data=cv.content)
+
+    # Cache results
+    redis_client.set(cache_key, json.dumps(matches), ttl=3600)
+
+    # Generate unique prediction_id for this matching session
+    prediction_id = str(uuid.uuid4())
+
+    # Save predictions to DB
+    prediction = Prediction(
+        prediction_id=prediction_id, cv_id=cv_id, matches=matches
+    )
+    session.add(prediction)
+    session.commit()
+
+    logger.info(
+        f"Generated prediction_id {prediction_id} for CV {cv_id} with {len(matches)} matches"
+    )
+
+  
+
+    # Extract candidate name
+    candidate_name = "Unknown"
+    if cv and cv.content:
+        basics = cv.content.get("basics", {})
+        if isinstance(basics, dict):
+            candidate_name = basics.get("name", "Unknown")
+
+    return {
+        "candidate_id": cv_id,
+        "candidate_name": candidate_name,
+        "recommendations": matches,
+        "prediction_id": prediction_id,
+        "cv_id": cv_id,
+        "count":len(matches),
+        "applied_jobs": applied_jobs,
+        "saved_jobs": saved_jobs,
+    }

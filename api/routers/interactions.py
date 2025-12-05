@@ -1,12 +1,14 @@
 """
 Unified interaction tracking for both candidates and hirers.
 Simple, elegant, and sufficient for AI/analytics purposes.
+
+Modular design with composable validators and handlers.
 """
 
 from fastapi import APIRouter, HTTPException, Depends
-from sqlmodel import Session
+from sqlmodel import Session, select
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any, Union
 from datetime import datetime
 import logging
 
@@ -19,14 +21,223 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/interactions", tags=["interactions"])
 
 
+# ==================== VALIDATORS ====================
+
+def validate_action_for_user_type(user_type: str, action: str) -> None:
+    """Validate that action is allowed for user type."""
+    candidate_actions = ["viewed", "saved", "applied"]
+    hirer_actions = ["shortlisted", "interviewed", "hired", "rejected"]
+
+    if user_type == "candidate":
+        if action not in candidate_actions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid candidate action. Must be one of: {', '.join(candidate_actions)}"
+            )
+    elif user_type == "hirer":
+        if action not in hirer_actions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid hirer action. Must be one of: {', '.join(hirer_actions)}"
+            )
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="user_type must be 'candidate' or 'hirer'"
+        )
+
+
+def check_duplicate_interaction(
+    session: Session,
+    user_id: int,
+    job_id: str,
+    action: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Check for duplicate interactions and return early response if duplicate found.
+
+    Returns:
+        None if no duplicate found (continue processing)
+        Dict with response if duplicate found (return to client)
+    """
+    # Prevent duplicate "applied" actions
+    if action == "applied":
+        existing_apply = session.exec(
+            select(UserInteraction).where(
+                UserInteraction.user_id == user_id,
+                UserInteraction.job_id == job_id,
+                UserInteraction.action == "applied"
+            )
+        ).first()
+
+        if existing_apply:
+            logger.warning(f"User {user_id} already applied to job {job_id}")
+            return {
+                "status": "already_exists",
+                "message": "You have already applied to this job",
+                "application_id": None
+            }
+
+    # Prevent duplicate "saved" actions
+    if action == "saved":
+        existing_saved = session.exec(
+            select(UserInteraction).where(
+                UserInteraction.user_id == user_id,
+                UserInteraction.job_id == job_id,
+                UserInteraction.action == "saved"
+            )
+        ).first()
+
+        if existing_saved:
+            logger.info(f"User {user_id} already saved job {job_id}, skipping duplicate")
+            return {
+                "status": "already_exists",
+                "message": "Job already saved",
+                "application_id": None
+            }
+
+    # Limit "viewed" interactions to 1 per user per job
+    if action == "viewed":
+        existing_view = session.exec(
+            select(UserInteraction).where(
+                UserInteraction.user_id == user_id,
+                UserInteraction.job_id == job_id,
+                UserInteraction.action == "viewed"
+            )
+        ).first()
+
+        if existing_view:
+            logger.info(f"User {user_id} already viewed job {job_id}, skipping duplicate")
+            return {
+                "status": "already_exists",
+                "message": "View already logged",
+                "application_id": None
+            }
+
+    return None
+
+
+# ==================== HANDLERS ====================
+
+def build_metadata(interaction: "InteractionCreate", user_type: str) -> Dict[str, Any]:
+    """Build enhanced metadata for interaction."""
+    metadata = interaction.metadata or {}
+    metadata.update({
+        "user_type": user_type,
+        "cv_id": interaction.cv_id,
+        "prediction_id": interaction.prediction_id,
+        "application_id": interaction.application_id,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    return metadata
+
+
+def handle_application_creation(
+    session: Session,
+    interaction: "InteractionCreate"
+) -> Optional[int]:
+    """
+    Handle application creation for 'applied' action.
+
+    Returns:
+        application_id if created or found, None otherwise
+    """
+    if interaction.action != "applied" or not interaction.cv_id or not interaction.prediction_id:
+        return interaction.application_id
+
+    # Check for existing application
+    existing_app = session.exec(
+        select(Application).where(
+            Application.cv_id == interaction.cv_id,
+            Application.job_id == str(interaction.job_id)
+        )
+    ).first()
+
+    if existing_app:
+        logger.info(f"Application already exists: {existing_app.id}")
+        return existing_app.id
+
+    # Verify job exists before creating application
+    from core.db.models import Job
+    job_exists = session.exec(
+        select(Job).where(Job.job_id == str(interaction.job_id))
+    ).first()
+
+    if not job_exists:
+        logger.warning(f"Job {interaction.job_id} not found in database. Skipping application creation.")
+        return None
+
+    # Create new application
+    application = Application(
+        cv_id=interaction.cv_id,
+        job_id=str(interaction.job_id),
+        prediction_id=interaction.prediction_id,
+        status="pending"
+    )
+    session.add(application)
+    session.flush()
+    logger.info(f"Created Application {application.id}")
+    return application.id
+
+
+def handle_application_status_update(
+    session: Session,
+    interaction: "InteractionCreate",
+    user_type: str
+) -> None:
+    """Handle application status updates for hirer actions."""
+    if user_type != "hirer" or not interaction.application_id:
+        return
+
+    application = session.get(Application, interaction.application_id)
+    if not application:
+        logger.warning(f"Application {interaction.application_id} not found")
+        return
+
+    # Map hirer actions to application statuses
+    status_map = {
+        "shortlisted": "pending",
+        "interviewed": "pending",
+        "hired": "accepted",
+        "rejected": "rejected"
+    }
+
+    new_status = status_map.get(interaction.action)
+    if not new_status:
+        return
+
+    application.status = new_status
+    if new_status in ["accepted", "rejected"]:
+        application.decision_at = datetime.utcnow()
+
+    session.add(application)
+    logger.info(f"Updated Application {application.id} to {new_status}")
+
+
+def create_interaction_record(
+    session: Session,
+    user_id: int,
+    interaction: "InteractionCreate",
+    metadata: Dict[str, Any]
+) -> UserInteraction:
+    """Create and persist interaction record."""
+    db_interaction = UserInteraction(
+        user_id=user_id,
+        job_id=str(interaction.job_id),
+        action=interaction.action,
+        strategy="pgvector",
+        interaction_metadata=metadata
+    )
+    session.add(db_interaction)
+    return db_interaction
+
+
 class InteractionCreate(BaseModel):
     """Unified interaction model for both candidates and hirers."""
-    # Who
-    user_id: str  # Can be CV ID or user email/ID
-    user_type: str  # "candidate" or "hirer"
+    # Who (user_id and user_type are both injected from current_user)
 
     # What
-    job_id: str
+    job_id: Union[str, int]
     action: str  # viewed, saved, applied, shortlisted, interviewed, hired, rejected
 
     # Context (optional)
@@ -50,13 +261,13 @@ async def log_interaction(
     This endpoint tracks all user interactions with jobs and applications,
     enabling recommendation quality tracking, engagement analytics, and
     application lifecycle management.
-    
-    **Candidate actions**: 
-    - `viewed`: Candidate viewed a job recommendation
+
+    **Candidate actions**:
+    - `viewed`: Candidate viewed a job recommendation (max 1 per user-job)
     - `saved`: Candidate bookmarked a job for later
-    - `applied`: Candidate submitted an application
-    
-    **Hirer actions**: 
+    - `applied`: Candidate submitted an application (max 1 per user-job)
+
+    **Hirer actions**:
     - `shortlisted`: Hirer marked candidate for further review
     - `interviewed`: Hirer scheduled/completed interview
     - `hired`: Hirer accepted the candidate
@@ -66,37 +277,34 @@ async def log_interaction(
         interaction: Interaction data including user_id, job_id, action, etc.
         session: Database session (injected)
         current_user: Authenticated user (injected)
-    
+
     Returns:
         dict: Contains status, message, and application_id (if applicable)
-    
+
     Raises:
         HTTPException: 400 if invalid action for user type
         HTTPException: 401 if user not authenticated
         HTTPException: 500 if logging fails
-    
+
     Note:
         - Automatically creates Application records for 'applied' actions
         - Updates Application status for hirer actions
         - Tracks prediction_id for recommendation quality metrics
-    
+        - Prevents duplicate applies and excessive views
+
     Example:
         ```python
         # Candidate views a job
         POST /interactions/log
         {
-            "user_id": "cv_123",
-            "user_type": "candidate",
             "job_id": "job_456",
             "action": "viewed",
             "prediction_id": "pred_789"
         }
-        
+
         # Hirer shortlists a candidate
         POST /interactions/log
         {
-            "user_id": "hirer_123",
-            "user_type": "hirer",
             "job_id": "job_456",
             "action": "shortlisted",
             "application_id": 42
@@ -104,109 +312,40 @@ async def log_interaction(
         ```
     """
 
-    # Validate action based on user type
-    candidate_actions = ["viewed", "saved", "applied"]
-    hirer_actions = ["shortlisted", "interviewed", "hired", "rejected"]
+    # Step 1: Extract user info from auth
+    user_id_int = current_user.id
+    user_type = current_user.role  # "candidate", "hirer", or "admin"
 
-    if interaction.user_type == "candidate":
-        if interaction.action not in candidate_actions:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid candidate action. Must be one of: {', '.join(candidate_actions)}"
-            )
-    elif interaction.user_type == "hirer":
-        if interaction.action not in hirer_actions:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid hirer action. Must be one of: {', '.join(hirer_actions)}"
-            )
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="user_type must be 'candidate' or 'hirer'"
-        )
+    # Step 2: Validate action for user type
+    validate_action_for_user_type(user_type, interaction.action)
 
     try:
-        # Convert user_id to integer (hash if string)
-        try:
-            user_id_int = int(interaction.user_id)
-        except ValueError:
-            user_id_int = hash(interaction.user_id) % (10 ** 8)
-
-        # Build enhanced metadata
-        enhanced_metadata = interaction.metadata or {}
-        enhanced_metadata.update({
-            "user_type": interaction.user_type,
-            "cv_id": interaction.cv_id,
-            "prediction_id": interaction.prediction_id,
-            "application_id": interaction.application_id,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-
-        # Handle application creation/update for "applied" action
-        application_id = interaction.application_id
-
-        if interaction.action == "applied" and interaction.cv_id and interaction.prediction_id:
-            # Create application record if doesn't exist
-            from sqlmodel import select
-
-            existing_app = session.exec(
-                select(Application).where(
-                    Application.cv_id == interaction.cv_id,
-                    Application.job_id == interaction.job_id
-                )
-            ).first()
-
-            if not existing_app:
-                application = Application(
-                    cv_id=interaction.cv_id,
-                    job_id=interaction.job_id,
-                    prediction_id=interaction.prediction_id,
-                    status="pending"
-                )
-                session.add(application)
-                session.flush()
-                application_id = application.id
-                enhanced_metadata["application_id"] = application_id
-                logger.info(f"Created Application {application_id}")
-            else:
-                application_id = existing_app.id
-                enhanced_metadata["application_id"] = application_id
-
-        # Handle application status updates for hirer actions
-        if interaction.user_type == "hirer" and interaction.application_id:
-            application = session.get(Application, interaction.application_id)
-
-            if application:
-                # Update application status based on action
-                status_map = {
-                    "shortlisted": "pending",  # Still pending but flagged
-                    "interviewed": "pending",  # Still pending
-                    "hired": "accepted",
-                    "rejected": "rejected"
-                }
-
-                new_status = status_map.get(interaction.action)
-                if new_status:
-                    application.status = new_status
-                    if new_status in ["accepted", "rejected"]:
-                        application.decision_at = datetime.utcnow()
-                    session.add(application)
-                    logger.info(f"Updated Application {application.id} to {new_status}")
-
-        # Create interaction record
-        db_interaction = UserInteraction(
-            user_id=user_id_int,
-            job_id=interaction.job_id,
-            action=interaction.action,
-            strategy="pgvector",  # Can be parameterized if needed
-            interaction_metadata=enhanced_metadata
+        # Step 3: Check for duplicate interactions
+        duplicate_check = check_duplicate_interaction(
+            session, user_id_int, str(interaction.job_id), interaction.action
         )
-        session.add(db_interaction)
+        if duplicate_check:
+            return duplicate_check
+
+        # Step 3: Build metadata
+        metadata = build_metadata(interaction, user_type)
+
+        # Step 4: Handle application creation (for "applied" action)
+        application_id = handle_application_creation(session, interaction)
+        if application_id:
+            metadata["application_id"] = application_id
+
+        # Step 5: Handle application status updates (for hirer actions)
+        handle_application_status_update(session, interaction, user_type)
+
+        # Step 6: Create interaction record
+        create_interaction_record(session, user_id_int, interaction, metadata)
+
+        # Step 7: Commit transaction
         session.commit()
 
         logger.info(
-            f"Logged interaction: {interaction.user_type} {interaction.user_id} "
+            f"✓ Logged: {user_type} {user_id_int} "
             f"{interaction.action} job {interaction.job_id}"
         )
 
@@ -222,82 +361,24 @@ async def log_interaction(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/stats/{user_id}")
-async def get_user_interaction_stats(
-    user_id: str,
+@router.get("/my")
+async def get_my_interactions(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Get interaction statistics for a specific user.
-    
-    Provides comprehensive analytics on user engagement patterns,
-    including action breakdowns and recent activity history.
-    
-    Args:
-        user_id: User identifier (can be CV ID or user email/ID)
-        session: Database session (injected)
-        current_user: Authenticated user (injected)
-    
-    Returns:
-        dict: Contains:
-            - user_id: The queried user ID
-            - total_interactions: Total number of interactions
-            - actions: Dictionary of action counts
-            - recent_interactions: Last 10 interactions with details
-    
-    Raises:
-        HTTPException: 401 if user not authenticated
-        HTTPException: 403 if user tries to access others' stats (non-admin)
-    
-    Note:
-        Users can only view their own stats unless they are admin.
-    """
-    from sqlmodel import select, func
-
-    # Authorization check - users can only view their own stats unless admin
-    try:
-        user_id_int = int(user_id)
-    except ValueError:
-        user_id_int = hash(user_id) % (10 ** 8)
-    
-    # Check if user is requesting their own stats or is admin
-    current_user_id_int = current_user.id
-    if user_id_int != current_user_id_int and not current_user.is_admin:
-        raise HTTPException(
-            status_code=403,
-            detail="Not authorized to view other users' statistics"
-        )
-
-    # Get all interactions for this user
+    """Get all interactions for the current user."""
     interactions = session.exec(
-        select(UserInteraction).where(UserInteraction.user_id == user_id_int)
+        select(UserInteraction).where(UserInteraction.user_id == current_user.id)
     ).all()
-
-    if not interactions:
-        return {
-            "user_id": user_id,
-            "total_interactions": 0,
-            "actions": {}
-        }
-
-    # Aggregate by action
-    action_counts = {}
-    for interaction in interactions:
-        action = interaction.action
-        action_counts[action] = action_counts.get(action, 0) + 1
-
+    
     return {
-        "user_id": user_id,
-        "total_interactions": len(interactions),
-        "actions": action_counts,
-        "recent_interactions": [
+        "interactions": [
             {
                 "job_id": i.job_id,
                 "action": i.action,
-                "timestamp": i.timestamp.isoformat()
+                "timestamp": i.timestamp
             }
-            for i in interactions[-10:]  # Last 10 interactions
+            for i in interactions
         ]
     }
 

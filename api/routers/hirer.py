@@ -10,6 +10,13 @@ from core.services.embedding_utils import prepare_ollama_embedding
 from core.services.job_service import get_job_text_representation
 from core.parsing.schema import JobCreate  # Import canonical schema
 from api.routers.auth import get_current_user
+from api.schemas.responses import (
+    JobCreateResponse,
+    JobListResponse,
+    JobResponse,
+    JobDeleteResponse,
+    JobApplicationsResponse
+)
 import uuid
 import logging
 
@@ -18,37 +25,41 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/jobs", tags=["hirer"])
 
 
-@router.post("")
+@router.post("", response_model=JobCreateResponse)
 async def create_job(
-    job: JobCreate, 
+    job: JobCreate,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
     is_test: bool = False,
-):
+) -> JobCreateResponse:
     """
-    Create a new job posting with comprehensive fields.
-    
+    Create a new job posting.
+
     This endpoint allows authenticated hirers to create job postings. The job
     embedding can be computed immediately (test mode) or queued for batch processing.
-    
-    Args:
-        job: Job data following JobCreate schema with all required fields
-        background_tasks: FastAPI background tasks (injected)
-        session: Database session (injected)
-        current_user: Authenticated user creating the job (injected)
-        is_test: If True, compute embedding immediately; if False, queue for batch
-    
-    Returns:
-        dict: Contains status message and created job_id
-    
-    Raises:
-        HTTPException: 401 if user not authenticated
-        HTTPException: 403 if user role is not 'hirer'
-        HTTPException: 500 if job creation fails
-    
-    Note:
-        Only users with 'hirer' role can create jobs.
-        Job is automatically linked to the authenticated user.
+
+    **Required fields:**
+    - title: Job title (e.g., "Senior Python Developer")
+    - company: Company name
+    - description: Detailed job description
+
+    **Optional fields:**
+    - type: Employment type (Full-time, Part-time, Contract)
+    - location: Office location details
+    - remote: Remote work policy (Full, Hybrid, None)
+    - salary: Salary information
+    - experience: Required experience level
+    - skills: Required skills with proficiency levels
+    - responsibilities: List of job responsibilities
+    - qualifications: Required qualifications
+
+    **Processing modes:**
+    - is_test=true: Compute embedding immediately (for testing)
+    - is_test=false: Queue for batch processing (production)
+
+    **Returns:** Job creation status and unique job_id
+
+    **Authorization:** Only users with 'hirer' role can create jobs
     """
     # Authorization check
     if current_user.role != "hirer":
@@ -85,7 +96,8 @@ async def create_job(
             owner_id=current_user.id,  # Use authenticated user's ID
             **job_data,
             embedding_status="pending_batch" if use_batch else "completed",
-            canonical_text=text_rep
+            canonical_text=text_rep,
+            canonical_json=job_data
         )
 
         # Compute embedding synchronously or mark for batch
@@ -117,61 +129,72 @@ async def create_job(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("")
+@router.get("", response_model=JobListResponse)
 async def list_jobs(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-):
+) -> JobListResponse:
     """
-    List jobs for the authenticated hirer.
-    
-    Returns jobs created by the authenticated user.
-    
-    Args:
-        session: Database session (injected)
-        current_user: Authenticated user (injected)
-    Returns:
-        dict: Contains list of jobs and total count
+    List all jobs created by the authenticated hirer.
+
+    Returns all job postings created by the currently authenticated user,
+    ordered by creation date (newest first).
+
+    **Returns:** List of jobs with full details and total count
+
+    **Authorization:** Returns only jobs owned by the authenticated user
     """
-   
     # Show only user's own jobs
-    jobs = session.exec(select(Job).where(Job.owner_id == current_user.id)).all()
-    
-    return {"jobs": jobs, "count": len(jobs)}
+    jobs = session.exec(
+        select(Job)
+        .where(Job.owner_id == current_user.id)
+        .order_by(Job.created_at.desc())
+    ).all()
+
+    return JobListResponse(jobs=jobs, count=len(jobs))
 
 
-@router.get("/{job_id}")
-async def get_job(job_id: str, session: Session = Depends(get_session)):
-    """Get a specific job by ID."""
+@router.get("/{job_id}", response_model=JobResponse)
+async def get_job(
+    job_id: str,
+    session: Session = Depends(get_session)
+) -> JobResponse:
+    """
+    Get details of a specific job posting.
+
+    Retrieve full details of a job posting by its unique identifier.
+
+    **Returns:** Complete job information including title, description, requirements, and metadata
+
+    **Raises:** 404 if job not found
+    """
     job = session.exec(select(Job).where(Job.job_id == job_id)).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
 
-@router.delete("/{job_id}")
+@router.delete("/{job_id}", response_model=JobDeleteResponse)
 async def delete_job(
     job_id: str,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-):
+) -> JobDeleteResponse:
     """
     Delete a job posting.
-    
-    Only the job owner or admin can delete a job posting.
-    
-    Args:
-        job_id: Job identifier
-        session: Database session (injected)
-        current_user: Authenticated user (injected)
-    
-    Returns:
-        dict: Status message and deleted job_id
-    
-    Raises:
-        HTTPException: 404 if job not found
-        HTTPException: 403 if user not authorized to delete
-        HTTPException: 401 if user not authenticated
+
+    Permanently removes a job posting from the system. Only the job owner
+    or system admin can delete a job.
+
+    **Returns:** Deletion confirmation with job_id
+
+    **Authorization:**
+    - Job owner can delete their own jobs
+    - Admins can delete any job
+
+    **Raises:**
+    - 404: Job not found
+    - 403: Not authorized to delete this job
     """
     job = session.exec(select(Job).where(Job.job_id == job_id)).first()
     if not job:
@@ -197,32 +220,31 @@ async def delete_job(
 
 # TODO: if JD is updated then may need have to recompute embeddings
 
-@router.get("/{job_id}/applications")
+@router.get("/{job_id}/applications", response_model=JobApplicationsResponse)
 async def get_job_applications(
     job_id: str,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-    status_filter: Optional[str] = None,  # pending, accepted, rejected
-):
+    status_filter: Optional[str] = None,
+) -> JobApplicationsResponse:
     """
-    Get all applications for a specific job.
-    
-    Only the job owner or admin can view applications for a job.
-    Results can be filtered by application status.
-    
-    Args:
-        job_id: Job identifier
-        session: Database session (injected)
-        current_user: Authenticated user (injected)
-        status_filter: Optional filter - "pending", "accepted", or "rejected"
-    
-    Returns:
-        dict: Contains job info, applications with candidate details, and count
-    
-    Raises:
-        HTTPException: 404 if job not found
-        HTTPException: 403 if user not authorized to view applications
-        HTTPException: 401 if user not authenticated
+    Get all applications for a specific job posting.
+
+    Retrieve all candidate applications for a job, with optional filtering
+    by application status. Includes candidate details from CVs.
+
+    **Query Parameters:**
+    - status_filter: Filter by status (pending, accepted, rejected)
+
+    **Returns:** List of applications with full candidate information
+
+    **Authorization:**
+    - Job owner can view applications for their jobs
+    - Admins can view all applications
+
+    **Raises:**
+    - 404: Job not found
+    - 403: Not authorized to view applications
     """
     # Verify job exists
     job = session.exec(select(Job).where(Job.job_id == job_id)).first()
@@ -273,4 +295,52 @@ async def get_job_applications(
         "applications": applications_with_cv,
         "count": len(applications_with_cv)
     }
+
+
+@router.post("/{job_id}/applications/{application_id}/shortlist")
+async def shortlist_application(
+    job_id: str,
+    application_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark application as shortlisted."""
+    # Verify job ownership
+    job = session.exec(select(Job).where(Job.job_id == job_id)).first()
+    if not job or (job.owner_id != current_user.id and not current_user.is_admin):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    application = session.get(Application, application_id)
+    if not application or application.job_id != job_id:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    application.status = "shortlisted"
+    session.add(application)
+    session.commit()
+
+    return {"status": "Application shortlisted", "application_id": application_id}
+
+
+@router.post("/{job_id}/applications/{application_id}/interview")
+async def interview_application(
+    job_id: str,
+    application_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark application as interviewed."""
+    # Verify job ownership
+    job = session.exec(select(Job).where(Job.job_id == job_id)).first()
+    if not job or (job.owner_id != current_user.id and not current_user.is_admin):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    application = session.get(Application, application_id)
+    if not application or application.job_id != job_id:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    application.status = "interviewed"
+    session.add(application)
+    session.commit()
+
+    return {"status": "Application marked as interviewed", "application_id": application_id}
 
