@@ -28,23 +28,10 @@ def test_celery_task(message: str = "Hello from Celery!"):
     }
 
 
-# TEST BEAT TASK - To verify Celery Beat is working
-@celery_app.task
-def test_beat_task():
-    """
-    Periodic test task to verify Celery Beat scheduler is running.
-    This runs automatically every 2 minutes via beat_schedule.
-    """
-    logger.info("TEST BEAT TASK EXECUTED - Celery Beat is working!")
-    return {
-        "status": "success",
-        "message": "Beat scheduler is running",
-        "timestamp": datetime.utcnow().isoformat()
-    }
 
 
 # BATCH CV PARSING TASK
-#@celery_app.task
+@celery_app.task
 def process_batch_cv_parsing():
     """
     Process CVs with parsing_status='pending_batch' using efficient batch parsing.
@@ -114,7 +101,7 @@ def process_batch_cv_parsing():
 
 # Commented out to prevent auto-execution during development
 # for cvs
-# @celery_app.task
+@celery_app.task
 def submit_cv_batch_embeddings_task():
     """
     Collects CVs with embedding_status='pending_batch' and submits a batch job to OpenAI.
@@ -166,7 +153,7 @@ def submit_cv_batch_embeddings_task():
             logger.info(f"Found {len(cvs)} CVs for batch processing")
             
             # 2. Prepare requests
-            requests = batch_service.prepare_embedding_requests(cvs)
+            requests = batch_service.prepare_cv_embedding_requests(cvs)
             if not requests:
                 logger.warning("No valid requests generated from CVs")
                 return
@@ -186,7 +173,7 @@ def submit_cv_batch_embeddings_task():
             batch_req = batch_service.create_batch(
                 input_file_id=file_id, 
                 endpoint="/v1/embeddings",
-                metadata={"type": "embedding", "count": str(len(cvs))}
+                metadata={"type": "embedding",  "sub_type":"cv", "count": str(len(cvs))}
             )
             
             # 6. Save BatchRequest to DB
@@ -211,7 +198,7 @@ def submit_cv_batch_embeddings_task():
 
 # Commented out to prevent auto-execution during development
 # for jobs
-# @celery_app.task
+@celery_app.task
 def submit_batch_job_embeddings_task():
     """
     Collects Jobs with embedding_status='pending_batch' and submits a batch job.
@@ -275,7 +262,7 @@ def submit_batch_job_embeddings_task():
             batch_req = batch_service.create_batch(
                 input_file_id=file_id, 
                 endpoint="/v1/embeddings",
-                metadata={"type": "job_embedding", "count": str(len(jobs))}
+                metadata={"type": "job_embedding", "sub_type":"job", "count": str(len(jobs))}
             )
             
             session.add(batch_req)
@@ -295,7 +282,7 @@ def submit_batch_job_embeddings_task():
 
 
 # Commented out to prevent auto-execution during development
-# @celery_app.task
+@celery_app.task
 def perform_batch_matches():
     """
     Periodically check for CVs that need fresh matches and process them in batch.
@@ -411,7 +398,7 @@ def _handle_batch_errors(batch_req, error_file_id, session, batch_service):
 
 # Commented out to prevent auto-execution during development
 # for both CVs and Jobs status polling!
-# @celery_app.task
+@celery_app.task
 def check_batch_status_task():
     """
     Checks status of active batch jobs and processes results.
