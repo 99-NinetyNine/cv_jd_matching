@@ -6,7 +6,7 @@
 set -e
 
 HOST="${HOST:-http://localhost:8000}"
-SCRIPT="scripts/locust_load_test_new.py"
+SCRIPT="tests/locustfile.py"
 
 echo "============================================"
 echo "CV-Job Matching Load Test Runner"
